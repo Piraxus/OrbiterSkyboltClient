@@ -11,6 +11,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OrbiterEntityFactory.h"
 #include "ModelFactory.h"
 #include "ObjectUtil.h"
+#include "VisibilityCategory.h"
 #include <SkyboltEngine/EntityFactory.h>
 #include <SkyboltEngine/VisObjectsComponent.h>
 #include <SkyboltEngine/SimVisBinding/SimVisBinding.h>
@@ -70,6 +71,24 @@ osg::Vec3d orbiterVector3ToOsg(const VECTOR3& v)
 	return osg::Vec3d(v.z, v.x, -v.y);
 }
 
+static int toVisibilityCategoryMask(int vismode)
+{
+	int mask = 0;
+	if (vismode & MESHVIS_COCKPIT)
+	{
+		mask |= VisibilityCategory::cockpitView;
+	}
+	if (vismode & MESHVIS_VC)
+	{
+		mask |= VisibilityCategory::virtualCockpitView;
+	}
+	if (vismode & MESHVIS_EXTERNAL)
+	{
+		mask |= VisibilityCategory::externalView;
+	}
+	return mask;
+}
+
 sim::EntityPtr OrbiterEntityFactory::createVessel(VESSEL* vessel) const
 {
 	sim::EntityPtr entity = std::make_shared<sim::Entity>();
@@ -89,12 +108,14 @@ sim::EntityPtr OrbiterEntityFactory::createVessel(VESSEL* vessel) const
 		if (auto hMesh = vessel->GetMeshTemplate(i); hMesh)
 		{
 			int vismode = (int)vessel->GetMeshVisibilityMode(i);
-			if (vismode != MESHVIS_NEVER)// && !(vismode & MESHVIS_EXTERNAL)) // TODO: mesh visibility layers
+			if (vismode != MESHVIS_NEVER)
 			{
 				VECTOR3 offset;
 				vessel->GetMeshOffset(i, offset);
 
 				vis::ModelPtr model = mModelFactory->createModel(hMesh);
+				model->setVisibilityCategoryMask(toVisibilityCategoryMask(vismode));
+
 				visObjectsComponent->addObject(model);
 
 				SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,

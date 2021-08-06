@@ -17,6 +17,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
+#include "VisibilityCategory.h"
 
 #include <SkyboltEngine/EngineRoot.h>
 #include <SkyboltEngine/EngineRootFactory.h>
@@ -26,6 +27,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltSim/CameraController/CameraControllerSelector.h>
 #include <SkyboltSim/Components/CameraComponent.h>
 #include <SkyboltSim/Components/CameraControllerComponent.h>
+#include <SkyboltVis/Camera.h>
 #include <SkyboltVis/OsgImageHelpers.h>
 #include <SkyboltVis/OsgStateSetHelpers.h>
 #include <SkyboltVis/OsgTextureHelpers.h>
@@ -446,6 +448,18 @@ sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
 	return sim::Quaternion();
 }
 
+static int getVisibilityCategoryMask()
+{
+	if (oapiCameraInternal())
+	{
+		return oapiCockpitMode() == COCKPIT_VIRTUAL ? VisibilityCategory::virtualCockpitView : VisibilityCategory::cockpitView;
+	}
+	else
+	{
+		return VisibilityCategory::externalView;
+	}
+}
+
 static void updateCamera(sim::Entity& camera)
 {
 	VECTOR3 gpos;
@@ -459,6 +473,9 @@ static void updateCamera(sim::Entity& camera)
 
 	auto component = camera.getFirstComponentRequired<sim::CameraComponent>();
 	component->getState().fovY = float(oapiCameraAperture()) * 2.0f;
+
+	auto visCamera = getVisCamera(camera);
+	visCamera->setVisibilityCategoryMask(getVisibilityCategoryMask());
 }
 
 static sim::EntityPtr createEntity(const OrbiterEntityFactory& factory, OBJHANDLE object)
