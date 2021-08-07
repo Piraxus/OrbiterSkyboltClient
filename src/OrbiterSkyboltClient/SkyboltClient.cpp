@@ -518,10 +518,25 @@ SURFHANDLE SkyboltClient::getSurfaceHandleFromTextureId(MESHHANDLE mesh, int id)
 void SkyboltClient::translateEntities()
 {
 	std::map<OBJHANDLE, skybolt::sim::EntityPtr> currentEntities;
+
+	std::vector<OBJHANDLE> objects;
 	int objectCount = oapiGetObjectCount();
 	for (int i = 0; i < objectCount; ++i)
 	{
-		OBJHANDLE object = oapiGetObjectByIndex(i);
+		objects.push_back(oapiGetObjectByIndex(i));
+	}
+
+	if (g_earth)
+	{
+		objectCount = oapiGetBaseCount(g_earth);
+		for (int i = 0; i < objectCount; ++i)
+		{
+			objects.push_back(oapiGetBaseByIndex(g_earth, i));
+		}
+	}
+
+	for (const auto& object : objects)
+	{
 		sim::EntityPtr entity;
 		auto it = mEntities.find(object);
 		if (it == mEntities.end())
@@ -529,6 +544,9 @@ void SkyboltClient::translateEntities()
 			entity = createEntity(*mEntityFactory, object);
 			if (entity)
 			{
+				if (object != g_earth)
+					updateEntity(object, *entity);
+
 				mEngineRoot->simWorld->addEntity(entity);
 			}
 		}

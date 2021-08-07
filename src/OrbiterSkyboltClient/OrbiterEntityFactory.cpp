@@ -29,40 +29,33 @@ using namespace skybolt;
 OrbiterEntityFactory::OrbiterEntityFactory(const OrbiterEntityFactoryConfig& config) :
 	mEntityFactory(config.entityFactory),
 	mScene(config.scene),
-	mModelFactory(config.modelFactory)
+	mModelFactory(config.modelFactory),
+	mGraphicsClient(config.graphicsClient)
 {
 	assert(mEntityFactory);
 	assert(mScene);
 	assert(mModelFactory);
+	assert(mGraphicsClient);
 }
 
 OrbiterEntityFactory::~OrbiterEntityFactory() = default;
 
 sim::EntityPtr OrbiterEntityFactory::createEntity(OBJHANDLE object) const
 {
-	std::string name = getName(object);
-	if (name == "Earth")
-	{
-		return mEntityFactory->createEntity("PlanetEarth");
-	}
-
 	switch (oapiGetObjectType(object))
 	{
 		case OBJTP_VESSEL:
 			return createVessel(oapiGetVesselInterface(object));
+		case OBJTP_PLANET:
+			return createPlanet(object);
+		//case OBJTP_STAR:
+		//	return new vStar(_hObj, scene);
+		case OBJTP_SURFBASE:
+			return createBase(object);
+//		default:
+	//		return new vObject(_hObj, scene);
 		default:
 			return nullptr;
-			// TODO
-			/*
-		case OBJTP_PLANET:
-			return new vPlanet(_hObj, scene);
-		case OBJTP_STAR:
-			return new vStar(_hObj, scene);
-		case OBJTP_SURFBASE:
-			return new vBase(_hObj, scene);
-		default:
-			return new vObject(_hObj, scene);
-			*/
 	}
 }
 
@@ -125,6 +118,60 @@ sim::EntityPtr OrbiterEntityFactory::createVessel(VESSEL* vessel) const
 				simVisBindingComponent->bindings.push_back(simVis);
 			}
 		}
+	}
+
+	return entity;
+}
+
+sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
+{
+	std::string name = getName(object);
+	if (name == "Earth")
+	{
+		return mEntityFactory->createEntity("PlanetEarth");
+	}
+	return nullptr;
+}
+
+sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
+{
+	sim::EntityPtr entity = std::make_shared<sim::Entity>();
+
+	SimVisBindingsComponentPtr simVisBindingComponent(new SimVisBindingsComponent);
+	entity->addComponent(simVisBindingComponent);
+
+	VisObjectsComponentPtr visObjectsComponent(new VisObjectsComponent(mScene.get()));
+	entity->addComponent(visObjectsComponent);
+
+	entity->addComponent(std::make_shared<sim::Node>());
+
+	MESHHANDLE *sbs, *sas;
+	DWORD nsbs, nsas;
+	mGraphicsClient->GetBaseStructures(object, &sbs, &nsbs, &sas, &nsas);
+
+	for (int i = 0; i < nsbs; i++)
+	{
+		MESHHANDLE mesh = sbs[i];
+		vis::ModelPtr model = mModelFactory->createModel(mesh);
+		visObjectsComponent->addObject(model);
+
+		SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,
+			osg::Vec3(),
+			osg::Quat()
+		));
+		simVisBindingComponent->bindings.push_back(simVis);
+	}
+	for (int i = 0; i < nsas; i++)
+	{
+		MESHHANDLE mesh = sas[i];
+		vis::ModelPtr model = mModelFactory->createModel(mesh);
+		visObjectsComponent->addObject(model);
+
+		SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,
+			osg::Vec3(),
+			osg::Quat()
+		));
+		simVisBindingComponent->bindings.push_back(simVis);
 	}
 
 	return entity;

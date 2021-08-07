@@ -27,6 +27,7 @@ struct OrbiterEntityFactoryConfig
 	skybolt::EntityFactory* entityFactory;
 	skybolt::vis::ScenePtr scene;
 	std::shared_ptr<ModelFactory> modelFactory;
+	oapi::GraphicsClient* graphicsClient;
 };
 
 class OrbiterEntityFactory
@@ -40,8 +41,13 @@ public:
 
 	skybolt::sim::EntityPtr createVessel(VESSEL* vessel) const;
 
+	skybolt::sim::EntityPtr createPlanet(OBJHANDLE object) const;
+
+	skybolt::sim::EntityPtr createBase(OBJHANDLE object) const;
+
 private:
 	skybolt::EntityFactory* mEntityFactory;
 	skybolt::vis::ScenePtr mScene;
 	std::shared_ptr<ModelFactory> mModelFactory;
+	oapi::GraphicsClient* mGraphicsClient;
 };

@@ -13,9 +13,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/OsgImageHelpers.h>
 #include <SkyboltVis/OsgStateSetHelpers.h>
 #include <SkyboltVis/Renderable/Model/Model.h>
-
+#include <SkyboltVis/OsgGeometryFactory.h>
+#include <SkyboltVis/OsgGeometryHelpers.h>
 #include <osg/Geode>
 #include <osg/Geometry>
+
+#include <assert.h>
 
 using namespace oapi;
 using namespace skybolt;
@@ -36,34 +39,46 @@ std::unique_ptr<skybolt::vis::Model> ModelFactory::createModel(MESHHANDLE hMesh)
 
 osg::ref_ptr<osg::Geometry> ModelFactory::createGeometry(const MESHGROUP& data)
 {
+	assert(data.nVtx > 0);
+	assert(data.nIdx > 0);
+	
 	osg::Geometry* geometry = new osg::Geometry();
-
+	
 	osg::Vec3Array* vertices = new osg::Vec3Array(data.nVtx);
 	osg::Vec3Array* normals = new osg::Vec3Array(data.nVtx);
 	osg::Vec2Array* uvs = new osg::Vec2Array(data.nVtx);
-	osg::UIntArray* indexBuffer = new osg::UIntArray(data.nIdx);
+	osg::ref_ptr<osg::UIntArray> indexBuffer = new osg::UIntArray(data.nIdx);
+
+	osg::BoundingBox boundingBox;
 
 	for (int i = 0; i < (int)data.nVtx; ++i)
 	{
 		const auto& v = data.Vtx[i];
 		// Note swap of coordinates from left-handed to right-handed
-		(*vertices)[i] = osg::Vec3f(v.z, v.x, -v.y);
+		osg::Vec3f pos(v.z, v.x, -v.y);
+		boundingBox.expandBy(pos);
+
+		(*vertices)[i] = pos;
 		(*normals)[i] = osg::Vec3f(v.nz, v.nx, -v.ny);
 		(*uvs)[i] = osg::Vec2f(v.tu, v.tv);
 	}
 
 	for (int i = 0; i < (int)data.nIdx; i += 3)
 	{
-		// Note swap of 2 and 3rd index to change winding from left-handed to right-handed
-		(*indexBuffer)[i] = data.Idx[i];
-		(*indexBuffer)[i + 1] = data.Idx[i + 2];
-		(*indexBuffer)[i + 2] = data.Idx[i + 1];
+		// Note swap of 2nd and 3rd index to change winding from left-handed to right-handed
+		(*indexBuffer)[i] = std::clamp((int)data.Idx[i], 0, (int)data.nVtx-1);
+		(*indexBuffer)[i + 1] = std::clamp((int)data.Idx[i + 2], 0, (int)data.nVtx - 1);
+		(*indexBuffer)[i + 2] = std::clamp((int)data.Idx[i + 1], 0, (int)data.nVtx - 1);
 	}
 
 	geometry->setVertexArray(vertices);
 	geometry->setNormalArray(normals, osg::Array::Binding::BIND_PER_VERTEX);
 	geometry->setTexCoordArray(0, uvs);
 	geometry->addPrimitiveSet(new osg::DrawElementsUInt(osg::PrimitiveSet::TRIANGLES, indexBuffer->size(), (GLuint*)indexBuffer->getDataPointer()));
+	vis::configureDrawable(*geometry);
+
+	geometry->setComputeBoundingBoxCallback(vis::createFixedBoundingBoxCallback(boundingBox));
+
 	return geometry;
 }
 
@@ -82,10 +97,13 @@ osg::ref_ptr<osg::Node> ModelFactory::getOrCreateMesh(MESHHANDLE mesh) const
 		for (DWORD i = 0; i < nGrp; i++)
 		{
 			MESHGROUP* group = oapiMeshGroup(mesh, i);
-			auto geometry = createGeometry(*group);
+			if (group->nVtx > 0 && group->nIdx > 0)
+			{
+				auto geometry = createGeometry(*group);
 
-			populateStateSet(*geometry->getOrCreateStateSet(), mesh, *group);
-			geode->addDrawable(geometry);
+				populateStateSet(*geometry->getOrCreateStateSet(), mesh, *group);
+				geode->addDrawable(geometry);
+			}
 		}
 
 		geode->getOrCreateStateSet()->setAttribute(mProgram);
