@@ -26,3 +26,8 @@ sim::Vector3 toSkyboltVector3(const VECTOR3& v)
 {
 	return reinterpret_cast<const sim::Vector3&>(v.data);
 }
+
+skybolt::sim::Vector3 toSkyboltVector3WithTransform(const VECTOR3& v)
+{
+	return skybolt::sim::Vector3(v.z, v.x, -v.y);
+}

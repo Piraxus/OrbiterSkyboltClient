@@ -26,6 +26,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 class OrbiterEntityFactory;
 class OsgSketchpad;
 class OverlayPanelFactory;
+class SkyboltParticleStream;
 
 namespace oapi {
 
@@ -182,6 +183,7 @@ private:
 	std::map<OBJHANDLE, skybolt::sim::EntityPtr> mEntities;
 	std::map<SURFHANDLE, osg::ref_ptr<osg::Texture2D>> mTextures;
 	std::map<SURFHANDLE, std::shared_ptr<OsgSketchpad>> mSketchpads;
+	std::set<SkyboltParticleStream*> mParticleStreams;
 
 }; // SkyboltClient
 

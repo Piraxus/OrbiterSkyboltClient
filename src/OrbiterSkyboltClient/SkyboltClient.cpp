@@ -17,6 +17,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
+#include "SkyboltParticleStream.h"
 #include "VisibilityCategory.h"
 
 #include <SkyboltEngine/EngineRoot.h>
@@ -135,25 +136,42 @@ MESHHANDLE SkyboltClient::clbkGetMesh(VISHANDLE vis, UINT idx)
 
 ParticleStream* SkyboltClient::clbkCreateParticleStream (PARTICLESTREAMSPEC *pss)
 {
-	return new ParticleStream(this, pss);
+	auto entityFinder = [this](OBJHANDLE vessel) {
+		return findOptional(mEntities, vessel).get_value_or(nullptr);
+	};
+
+	auto destructionAction = [this](SkyboltParticleStream* stream) {
+		mParticleStreams.erase(stream);
+	};
+
+	auto stream = new SkyboltParticleStream(this, pss, *mEngineRoot->entityFactory, mEngineRoot->simWorld.get(), entityFinder, destructionAction);
+	mParticleStreams.insert(stream);
+	return stream;
 }
 
 ParticleStream* SkyboltClient::clbkCreateExhaustStream (PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel, const double *lvl, const VECTOR3 *ref, const VECTOR3 *dir)
 {
-	return new ParticleStream(this, pss);
+	auto stream = clbkCreateParticleStream(pss);
+	stream->Attach(hVessel, ref, dir, lvl);
+	return stream;
 }
 
 ParticleStream* SkyboltClient::clbkCreateExhaustStream (PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel, const double *lvl, const VECTOR3 &ref, const VECTOR3 &dir)
 {
-	return new ParticleStream(this, pss);
+	auto stream = clbkCreateParticleStream(pss);
+	stream->Attach(hVessel, ref, dir, lvl);
+	return stream;
 }
 
 ParticleStream* SkyboltClient::clbkCreateReentryStream (PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel)
 {
 	return new ParticleStream(this, pss);
+	//auto stream = clbkCreateParticleStream(pss);
+	//stream->Attach(hVessel);
+	//return stream;
 }
 
 ScreenAnnotation *SkyboltClient::clbkCreateAnnotation ()
@@ -573,17 +591,21 @@ void SkyboltClient::clbkRenderScene ()
 	updateCamera(*mSimCamera);
 	translateEntities();
 
+	// Update particles
+	for (auto& stream : mParticleStreams)
+	{
+		stream->update();
+	}
+
+	// Step sim
 	auto simStepper = std::make_shared<sim::SimStepper>(mEngineRoot->systemRegistry);
 
-	double prevElapsedTime = 0;
-	double minFrameDuration = 0.01;
 	sim::System::StepArgs args;
-
-	double dtWallClock = 0.01;
-	args.dtSim = dtWallClock;
-	args.dtWallClock = dtWallClock;
+	args.dtSim = oapiGetSimStep();
+	args.dtWallClock = args.dtSim;
 	simStepper->step(args);
 
+	// Update panels
 	{
 		// Remove previous panels
 		mPanelGroup->removeChildren(0, mPanelGroup->getNumChildren());
@@ -592,6 +614,7 @@ void SkyboltClient::clbkRenderScene ()
 		Render2DOverlay();
 	}
 
+	// Render
 	mWindow->render();
 }
 
