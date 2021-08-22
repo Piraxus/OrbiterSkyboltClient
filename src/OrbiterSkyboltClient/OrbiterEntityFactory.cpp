@@ -11,7 +11,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OrbiterEntityFactory.h"
 #include "ModelFactory.h"
 #include "ObjectUtil.h"
-#include "VisibilityCategory.h"
+#include "OrbiterVisibilityCategory.h"
 #include <SkyboltEngine/EntityFactory.h>
 #include <SkyboltEngine/VisObjectsComponent.h>
 #include <SkyboltEngine/SimVisBinding/SimVisBinding.h>
@@ -66,18 +66,18 @@ osg::Vec3d orbiterVector3ToOsg(const VECTOR3& v)
 
 static int toVisibilityCategoryMask(int vismode)
 {
-	int mask = 0;
+	int mask = vis::VisibilityCategory::defaultCategories;
 	if (vismode & MESHVIS_COCKPIT)
 	{
-		mask |= VisibilityCategory::cockpitView;
+		mask |= OrbiterVisibilityCategory::cockpitView;
 	}
 	if (vismode & MESHVIS_VC)
 	{
-		mask |= VisibilityCategory::virtualCockpitView;
+		mask |= OrbiterVisibilityCategory::virtualCockpitView;
 	}
 	if (vismode & MESHVIS_EXTERNAL)
 	{
-		mask |= VisibilityCategory::externalView;
+		mask |= OrbiterVisibilityCategory::externalView;
 	}
 	return mask;
 }

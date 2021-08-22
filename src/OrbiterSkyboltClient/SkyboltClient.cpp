@@ -18,7 +18,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
 #include "SkyboltParticleStream.h"
-#include "VisibilityCategory.h"
+#include "OrbiterVisibilityCategory.h"
 
 #include <SkyboltEngine/EngineRoot.h>
 #include <SkyboltEngine/EngineRootFactory.h>
@@ -466,15 +466,15 @@ sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
 	return sim::Quaternion();
 }
 
-static int getVisibilityCategoryMask()
+static int getCameraVisibilityCategoryMask()
 {
 	if (oapiCameraInternal())
 	{
-		return oapiCockpitMode() == COCKPIT_VIRTUAL ? VisibilityCategory::virtualCockpitView : VisibilityCategory::cockpitView;
+		return (oapiCockpitMode() == COCKPIT_VIRTUAL ? OrbiterVisibilityCategory::virtualCockpitView : OrbiterVisibilityCategory::cockpitView);
 	}
 	else
 	{
-		return VisibilityCategory::externalView;
+		return OrbiterVisibilityCategory::externalView;
 	}
 }
 
@@ -493,7 +493,7 @@ static void updateCamera(sim::Entity& camera)
 	component->getState().fovY = float(oapiCameraAperture()) * 2.0f;
 
 	auto visCamera = getVisCamera(camera);
-	visCamera->setVisibilityCategoryMask(getVisibilityCategoryMask());
+	visCamera->setVisibilityCategoryMask(getCameraVisibilityCategoryMask());
 }
 
 static sim::EntityPtr createEntity(const OrbiterEntityFactory& factory, OBJHANDLE object)
