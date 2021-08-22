@@ -25,14 +25,18 @@ SkyboltParticleStream::SkyboltParticleStream(oapi::GraphicsClient* gc, PARTICLES
 	mEntityFinder(std::move(entityFinder)),
 	mDestructionAction(std::move(destructionAction))
 {
-	double halfSpeedSpread = pss->srcspread * 0.5;
+	double halfSpeedSpread = pss->srcspread * 0.5; 
+
+	// calculate automatic emission rate instead of using pss->srcrate
+	// because pss->srcrate values are too low to give nice looking particle streams.
+	double emissionRate = std::min(1000.0, 2.0 * pss->v0 / pss->srcsize);
 
 	nlohmann::json json = {
 	{"components", nlohmann::json::array({
 		{{"node", {
 		}}},
 		{{"particleSystem", {
-			{ "emissionRate", pss->srcrate },
+			{ "emissionRate", emissionRate },
 			{ "radius", pss->srcsize * 0.5 },
 			{ "elevationAngleMin", math::halfPiD() },
 			{ "elevationAngleMax", math::halfPiD() },
@@ -41,7 +45,8 @@ SkyboltParticleStream::SkyboltParticleStream(oapi::GraphicsClient* gc, PARTICLES
 			{ "upDirection", nlohmann::json::array({1, 0, 0}) },
 			{ "lifetime", pss->lifetime },
 			{ "radiusLinearGrowthPerSecond", pss->growthrate * 0.5 },
-			{ "albedoTexture", "Environment/smoke_04.png" }
+			{ "atmosphericSlowdownFactor", pss->atmslowdown },
+			{ "albedoTexture", "Environment/Explosion01_light_nofire.png" }
 		}}}
 	})}
 	};
@@ -72,5 +77,6 @@ void SkyboltParticleStream::update()
 	auto entity = hRef ? mEntityFinder(hRef) : nullptr;
 	mAttachmentComponent->resetTarget(entity.get());
 	mAttachmentComponent->setPositionRelBody(toSkyboltVector3WithTransform(lpos));
-	mParticleEmitter->setEmissionRateMultiplier((entity && level) ? *level : 0.0);
+	mParticleEmitter->setEmissionAlphaMultiplier((entity && level) ? *level : 0.0);
+	mParticleEmitter->setEmissionRateMultiplier((entity && level) ? 1.0 : 0.0);
 }
