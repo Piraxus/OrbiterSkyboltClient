@@ -76,7 +76,9 @@ void SkyboltParticleStream::update()
 {
 	auto entity = hRef ? mEntityFinder(hRef) : nullptr;
 	mAttachmentComponent->resetTarget(entity.get());
-	mAttachmentComponent->setPositionRelBody(toSkyboltVector3WithTransform(lpos));
+	mAttachmentComponent->setPositionRelBody(toSkyboltVector3WithTransform(*pos));
+	mAttachmentComponent->setOrientationRelBody(getOrientationFromDirection(-toSkyboltVector3WithTransform(*dir)));
+
 	mParticleEmitter->setEmissionAlphaMultiplier((entity && level) ? *level : 0.0);
 	mParticleEmitter->setEmissionRateMultiplier((entity && level && *level > 0.0) ? 1.0 : 0.0);
 }
