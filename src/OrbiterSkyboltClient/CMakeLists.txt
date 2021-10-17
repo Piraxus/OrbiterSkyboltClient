@@ -6,9 +6,12 @@ include_directories("../../Skybolt")
 find_package(Orbiter REQUIRED)
 include_directories(${Orbiter_INCLUDE_DIR})
 
+find_package(OpenGL REQUIRED)
+
 set(LIBS
 	SkyboltEngine
 	${Orbiter_LIBRARIES}
+	${OPENGL_LIBRARIES}
 )
 
 add_library(OrbiterSkyboltClient SHARED ${SOURCE})

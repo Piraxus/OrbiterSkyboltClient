@@ -14,6 +14,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "ModelFactory.h"
 #include "OrbiterEntityFactory.h"
 #include "ObjectUtil.h"
+#include "OpenGlContext.h"
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
@@ -40,7 +41,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltSim/Spatial/Geocentric.h>
 #include <SkyboltSim/System/SimStepper.h>
 #include <SkyboltSim/System/System.h>
-#include <SkyboltVis/Window/StandaloneWindow.h>
+#include <SkyboltVis/Window/EmbeddedWindow.h>
 #include <SkyboltCommon/MapUtility.h>
 #include <SkyboltCommon/File/OsDirectories.h>
 #include <SkyboltCommon/Json/ReadJsonFile.h>
@@ -68,7 +69,7 @@ DLLCLBK void ExitModule(HINSTANCE hDLL)
 {
 	if (g_client)
 	{
-		oapiUnregisterGraphicsClient (g_client);
+		oapiUnregisterGraphicsClient(g_client);
 		delete g_client;
 		g_client = nullptr;
 	}
@@ -83,13 +84,13 @@ SkyboltClient::~SkyboltClient()
 {
 }
 
-bool SkyboltClient::clbkInitialise ()
+bool SkyboltClient::clbkInitialise()
 {
+	return GraphicsClient::clbkInitialise();
 	// Don't create engine here because clbkInitialise is called by DllMain()
 	// where it's illegal to create threads. We will delay creation of the engine
 	// until the first frame needs to be rendered, where threads can be safely created.
 	// See https://stackoverflow.com/questions/1688290/creating-a-thread-in-dllmain
-	return true;
 }
 
 static osg::ref_ptr<osg::Texture2D> readAlbedoTexture(const std::string& filename)
@@ -102,7 +103,7 @@ static osg::ref_ptr<osg::Texture2D> readAlbedoTexture(const std::string& filenam
 	return texture;
 }
 
-SURFHANDLE SkyboltClient::clbkLoadTexture (const char *fname, DWORD flags)
+SURFHANDLE SkyboltClient::clbkLoadTexture(const char *fname, DWORD flags)
 {
 	char cpath[256];
 	if (TexturePath(fname, cpath))
@@ -115,16 +116,16 @@ SURFHANDLE SkyboltClient::clbkLoadTexture (const char *fname, DWORD flags)
 	return NULL;
 }
 
-SURFHANDLE SkyboltClient::clbkLoadSurface (const char *fname, DWORD attrib)
+SURFHANDLE SkyboltClient::clbkLoadSurface(const char *fname, DWORD attrib)
 {
 	return NULL;
 }
 
-void SkyboltClient::clbkReleaseTexture (SURFHANDLE hTex)
+void SkyboltClient::clbkReleaseTexture(SURFHANDLE hTex)
 {
 }
 
-int SkyboltClient::clbkVisEvent (OBJHANDLE hObj, VISHANDLE vis, DWORD msg, UINT context)
+int SkyboltClient::clbkVisEvent(OBJHANDLE hObj, VISHANDLE vis, DWORD msg, DWORD_PTR context)
 {
 	return -2;
 }
@@ -134,7 +135,7 @@ MESHHANDLE SkyboltClient::clbkGetMesh(VISHANDLE vis, UINT idx)
 	return NULL;
 }
 
-ParticleStream* SkyboltClient::clbkCreateParticleStream (PARTICLESTREAMSPEC *pss)
+ParticleStream* SkyboltClient::clbkCreateParticleStream(PARTICLESTREAMSPEC *pss)
 {
 	auto entityFinder = [this](OBJHANDLE vessel) {
 		return findOptional(mEntities, vessel).get_value_or(nullptr);
@@ -149,7 +150,7 @@ ParticleStream* SkyboltClient::clbkCreateParticleStream (PARTICLESTREAMSPEC *pss
 	return stream;
 }
 
-ParticleStream* SkyboltClient::clbkCreateExhaustStream (PARTICLESTREAMSPEC *pss,
+ParticleStream* SkyboltClient::clbkCreateExhaustStream(PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel, const double *lvl, const VECTOR3 *ref, const VECTOR3 *dir)
 {
 	auto stream = clbkCreateParticleStream(pss);
@@ -157,7 +158,7 @@ ParticleStream* SkyboltClient::clbkCreateExhaustStream (PARTICLESTREAMSPEC *pss,
 	return stream;
 }
 
-ParticleStream* SkyboltClient::clbkCreateExhaustStream (PARTICLESTREAMSPEC *pss,
+ParticleStream* SkyboltClient::clbkCreateExhaustStream(PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel, const double *lvl, const VECTOR3 &ref, const VECTOR3 &dir)
 {
 	auto stream = clbkCreateParticleStream(pss);
@@ -165,7 +166,7 @@ ParticleStream* SkyboltClient::clbkCreateExhaustStream (PARTICLESTREAMSPEC *pss,
 	return stream;
 }
 
-ParticleStream* SkyboltClient::clbkCreateReentryStream (PARTICLESTREAMSPEC *pss,
+ParticleStream* SkyboltClient::clbkCreateReentryStream(PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel)
 {
 	return new ParticleStream(this, pss);
@@ -174,44 +175,44 @@ ParticleStream* SkyboltClient::clbkCreateReentryStream (PARTICLESTREAMSPEC *pss,
 	//return stream;
 }
 
-ScreenAnnotation *SkyboltClient::clbkCreateAnnotation ()
+ScreenAnnotation *SkyboltClient::clbkCreateAnnotation()
 {
 	return nullptr;
 }
 
-LRESULT SkyboltClient::RenderWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT SkyboltClient::RenderWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	return NULL;
+	return GraphicsClient::RenderWndProc(hWnd, uMsg, wParam, lParam);
 }
 
-INT_PTR SkyboltClient::LaunchpadVideoWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	return false;
-}
-
-bool SkyboltClient::clbkFullscreenMode () const
+INT_PTR SkyboltClient::LaunchpadVideoWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	return false;
 }
 
-void SkyboltClient::clbkGetViewportSize (DWORD *width, DWORD *height) const
+bool SkyboltClient::clbkFullscreenMode() const
+{
+	return false;
+}
+
+void SkyboltClient::clbkGetViewportSize(DWORD *width, DWORD *height) const
 {
 	*width = mWindow->getWidth();
 	*height = mWindow->getHeight();
 }
 
-bool SkyboltClient::clbkGetRenderParam (DWORD prm, DWORD *value) const
+bool SkyboltClient::clbkGetRenderParam(DWORD prm, DWORD *value) const
 {
 	return false;
 }
 
-void SkyboltClient::clbkRender2DPanel (SURFHANDLE *hSurf, MESHHANDLE hMesh, MATRIX3 *T, bool additive)
+void SkyboltClient::clbkRender2DPanel(SURFHANDLE *hSurf, MESHHANDLE hMesh, MATRIX3 *T, bool additive)
 {
 	float alpha = 1.0;
 	clbkRender2DPanel(hSurf, hMesh, T, alpha, additive);
 }
 
-void SkyboltClient::clbkRender2DPanel (SURFHANDLE *hSurf, MESHHANDLE hMesh, MATRIX3 *T, float alpha, bool additive)
+void SkyboltClient::clbkRender2DPanel(SURFHANDLE *hSurf, MESHHANDLE hMesh, MATRIX3 *T, float alpha, bool additive)
 {
 	osg::ref_ptr<osg::Geode> geode = mOverlayPanelFactory->createOverlayPanel(hSurf, hMesh, T, alpha, additive);
 	mPanelGroup->addChild(geode);
@@ -238,7 +239,7 @@ SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 	if (attrib & (OAPISURFACE_RENDERTARGET | OAPISURFACE_SKETCHPAD))
 	{
 		auto texture = createOrbiterRenderTexture(w, h);
-		
+
 		if (w == 0 || h == 0 || w > 4096 || h > 4096)
 		{
 			throw std::runtime_error("Invalid render target size requested: " + std::to_string(w) + " x " + std::to_string(h));
@@ -266,17 +267,17 @@ SURFHANDLE SkyboltClient::clbkCreateSurface(DWORD w, DWORD h, SURFHANDLE hTempla
 	return clbkCreateSurfaceEx(w, h, OAPISURFACE_RENDERTARGET);
 }
 
-SURFHANDLE SkyboltClient::clbkCreateSurface (HBITMAP hBmp)
+SURFHANDLE SkyboltClient::clbkCreateSurface(HBITMAP hBmp)
 {
 	return NULL;
 }
 
-int SkyboltClient::clbkBeginBltGroup (SURFHANDLE tgt)
+int SkyboltClient::clbkBeginBltGroup(SURFHANDLE tgt)
 {
 	return -2;
 }
 
-int SkyboltClient::clbkEndBltGroup ()
+int SkyboltClient::clbkEndBltGroup()
 {
 	return -2;
 }
@@ -308,7 +309,7 @@ bool SkyboltClient::clbkFillSurface(SURFHANDLE surf, DWORD tgtx, DWORD tgty, DWO
 	return false;
 }
 
-bool SkyboltClient::clbkCopyBitmap (SURFHANDLE pdds, HBITMAP hbm, int x, int y, int dx, int dy)
+bool SkyboltClient::clbkCopyBitmap(SURFHANDLE pdds, HBITMAP hbm, int x, int y, int dx, int dy)
 {
 	return false;
 }
@@ -329,9 +330,16 @@ static void WriteLog(const std::string& str)
 	oapiWriteLog(const_cast<char*>(str.c_str()));
 }
 
+HDC gldc;
+
 sim::CameraControllerSelector* cameraController;
 HWND SkyboltClient::clbkCreateRenderWindow()
 {
+	HWND hWnd = GraphicsClient::clbkCreateRenderWindow();
+	
+	gldc = GetDC(hWnd);
+	createOpenGlContext(gldc);
+
 	{
 		// Create engine
 		file::Path settingsFilename = file::getAppUserDataDirectory("Skybolt").append("Settings.json");
@@ -384,7 +392,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		mOverlayPanelFactory = std::make_unique<OverlayPanelFactory>(
 			[this] { return osg::Vec2i(mWindow->getWidth(), mWindow->getHeight()); },
 			textureProvider,
-			[this] (int mfdId) { return GetMFDSurface(mfdId); }
+			[this](int mfdId) { return GetMFDSurface(mfdId); }
 		);
 
 		// Create camera
@@ -404,7 +412,10 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("SunBillboard"));
 	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("MoonBillboard"));
 
-	mWindow = std::make_unique<vis::StandaloneWindow>(vis::RectI(0, 0, 1344, 756));
+	RECT rect;
+	GetWindowRect(hWnd, &rect);
+
+	mWindow = std::make_unique<vis::EmbeddedWindow>(rect.right - rect.left, rect.bottom - rect.top);
 
 	// Attach camera to window
 	osg::ref_ptr<vis::RenderTarget> viewport = createAndAddViewportToWindow(*mWindow, mEngineRoot->programs.getRequiredProgram("compositeFinal"));
@@ -423,10 +434,10 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		vis::makeStateSetTransparent(*stateSet, vis::TransparencyMode::Classic);
 	}
 
-	return (HWND)std::stoll(mWindow->getHandle());
+	return hWnd;
 }
 
-void SkyboltClient::clbkDestroyRenderWindow (bool fastclose)
+void SkyboltClient::clbkDestroyRenderWindow(bool fastclose)
 {
 	mWindow.reset();
 }
@@ -585,8 +596,21 @@ void SkyboltClient::translateEntities()
 	std::swap(currentEntities, mEntities);
 }
 
-void SkyboltClient::clbkRenderScene ()
+void SkyboltClient::clbkRenderScene()
 {
+	//return;
+	/*
+	while (GetRenderWindow())
+	{
+		MSG msg;
+		BOOL result = PeekMessageA(&msg, GetRenderWindow(), 0, 0, PM_REMOVE);
+		if (!result)
+		{
+			break;
+		}
+		RenderWndProc(msg.hwnd, msg.message, msg.wParam, msg.lParam);
+	}
+	*/
 	mEngineRoot->scenario.startJulianDate = oapiGetSimMJD() + 2400000.5;
 	updateCamera(*mSimCamera);
 	translateEntities();
@@ -616,6 +640,8 @@ void SkyboltClient::clbkRenderScene ()
 
 	// Render
 	mWindow->render();
+
+	SwapBuffers(gldc);
 }
 
 }; // namespace oapi

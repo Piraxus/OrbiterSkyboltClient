@@ -57,7 +57,7 @@ public:
 
 	bool clbkSetMeshProperty (DEVMESHHANDLE hMesh, DWORD property, DWORD value) override { return false; }
 
-	int clbkVisEvent (OBJHANDLE hObj, VISHANDLE vis, DWORD msg, UINT context) override;
+	int clbkVisEvent (OBJHANDLE hObj, VISHANDLE vis, DWORD msg, DWORD_PTR context) override;
 
 	MESHHANDLE clbkGetMesh(VISHANDLE vis, UINT idx) override;
 
@@ -66,6 +66,8 @@ public:
 	int clbkEditMeshGroup (DEVMESHHANDLE hMesh, DWORD grpidx, GROUPEDITSPEC *ges) override { return -2; }
 
 	void clbkPreOpenPopup () override {}
+
+	bool clbkFilterElevation(OBJHANDLE hPlanet, int ilat, int ilng, int lvl, double elev_res, INT16* elev) override { return false; } // MTODO: should not be required
 
 	ParticleStream *clbkCreateParticleStream (PARTICLESTREAMSPEC *pss) override;
 
@@ -177,7 +179,7 @@ private:
 	std::unique_ptr<skybolt::EngineRoot> mEngineRoot;
 	std::unique_ptr<OrbiterEntityFactory> mEntityFactory;
 	std::unique_ptr<OverlayPanelFactory> mOverlayPanelFactory;
-	std::unique_ptr<skybolt::vis::StandaloneWindow> mWindow;
+	std::unique_ptr<skybolt::vis::EmbeddedWindow> mWindow;
 	skybolt::sim::EntityPtr mSimCamera;
 	osg::ref_ptr<osg::Group> mPanelGroup;
 	std::map<OBJHANDLE, skybolt::sim::EntityPtr> mEntities;
