@@ -15,11 +15,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OrbiterEntityFactory.h"
 #include "ObjectUtil.h"
 #include "OpenGlContext.h"
+#include "OrbiterVisibilityCategory.h"
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
 #include "SkyboltParticleStream.h"
-#include "OrbiterVisibilityCategory.h"
 
 #include <SkyboltEngine/EngineRoot.h>
 #include <SkyboltEngine/EngineRootFactory.h>
@@ -103,12 +103,23 @@ static osg::ref_ptr<osg::Texture2D> readAlbedoTexture(const std::string& filenam
 	return texture;
 }
 
+#define LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS 4
+
 SURFHANDLE SkyboltClient::clbkLoadTexture(const char *fname, DWORD flags)
 {
 	char cpath[256];
 	if (TexturePath(fname, cpath))
 	{
 		auto texture = readAlbedoTexture(std::string(cpath));
+
+		if (flags & LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS) // interpret this flag as disabling mipmaps
+		{
+			texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+			texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+			texture->setUseHardwareMipMapGeneration(false);
+
+		}
+
 		SURFHANDLE handle = (SURFHANDLE)texture.get();
 		mTextures[handle] = texture;
 		return handle;
@@ -242,10 +253,11 @@ SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 
 		if (w == 0 || h == 0 || w > 4096 || h > 4096)
 		{
-			throw std::runtime_error("Invalid render target size requested: " + std::to_string(w) + " x " + std::to_string(h));
+			return nullptr;
+			//throw std::runtime_error("Invalid render target size requested: " + std::to_string(w) + " x " + std::to_string(h));
 		}
 
-		osg::ref_ptr<osg::Camera> camera = factory.createCamera({texture}, /* clear */ true);
+		osg::ref_ptr<osg::Camera> camera = factory.createCamera({texture}, /* clear */ false);
 		SURFHANDLE handle = texture.get();
 		mTextures[handle] = texture;
 
@@ -270,6 +282,40 @@ SURFHANDLE SkyboltClient::clbkCreateSurface(DWORD w, DWORD h, SURFHANDLE hTempla
 SURFHANDLE SkyboltClient::clbkCreateSurface(HBITMAP hBmp)
 {
 	return NULL;
+}
+
+bool SkyboltClient::clbkBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE src, DWORD flag) const
+{
+	auto texture = findOptional(mTextures, tgt);
+	if (texture)
+	{
+		int w = (*texture)->getTextureWidth();
+		int h = (*texture)->getTextureHeight();
+		return clbkBlt(tgt, tgtx, tgty, src, 0, 0, w, h, flag);
+	}
+	return false;
+}
+
+bool SkyboltClient::clbkBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE src, DWORD srcx, DWORD srcy, DWORD w, DWORD h, DWORD flag) const
+{
+	auto srcTexture = findOptional(mTextures, src);
+	auto dstTexture = findOptional(mTextures, tgt);
+	if (!srcTexture || !dstTexture)
+	{
+		return false;
+	}
+
+	mTextureBlitter->blitTexture(**srcTexture, **dstTexture,
+		Box2i(glm::ivec2(srcx, srcy), glm::ivec2(srcx + w, srcy + h)),
+		Box2i(glm::ivec2(tgtx, tgty), glm::ivec2(tgtx + w, tgty + h)));
+	return true;
+}
+
+bool SkyboltClient::clbkScaleBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, DWORD tgtw, DWORD tgth,
+	SURFHANDLE src, DWORD srcx, DWORD srcy, DWORD srcw, DWORD srch, DWORD flag) const
+{
+	// TODO: support scaled texture blitting
+	return false;
 }
 
 int SkyboltClient::clbkBeginBltGroup(SURFHANDLE tgt)
@@ -330,15 +376,12 @@ static void WriteLog(const std::string& str)
 	oapiWriteLog(const_cast<char*>(str.c_str()));
 }
 
-HDC gldc;
-
-sim::CameraControllerSelector* cameraController;
 HWND SkyboltClient::clbkCreateRenderWindow()
 {
 	HWND hWnd = GraphicsClient::clbkCreateRenderWindow();
 	
-	gldc = GetDC(hWnd);
-	createOpenGlContext(gldc);
+	mGldc = GetDC(hWnd);
+	createOpenGlContext(mGldc);
 
 	{
 		// Create engine
@@ -402,7 +445,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		cameraComponent->getState().nearClipDistance = 0.2f;
 		cameraComponent->getState().farClipDistance = 5e7;
 
-		cameraController = static_cast<sim::CameraControllerSelector*>(mSimCamera->getFirstComponentRequired<sim::CameraControllerComponent>()->cameraController.get());
+		auto cameraController = static_cast<sim::CameraControllerSelector*>(mSimCamera->getFirstComponentRequired<sim::CameraControllerComponent>()->cameraController.get());
 		cameraController->selectController("Null");
 
 		mEngineRoot->simWorld->addEntity(mSimCamera);
@@ -413,7 +456,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("MoonBillboard"));
 
 	RECT rect;
-	GetWindowRect(hWnd, &rect);
+	GetClientRect(hWnd, &rect);
 
 	mWindow = std::make_unique<vis::EmbeddedWindow>(rect.right - rect.left, rect.bottom - rect.top);
 
@@ -422,10 +465,18 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 	viewport->setScene(std::make_shared<vis::RenderTargetSceneAdapter>(mEngineRoot->scene));
 	viewport->setCamera(getVisCamera(*mSimCamera));
 
+	// Setup blitter
+	{
+		osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().front().target->getOsgCamera();
+		mTextureBlitter = new TextureBlitter();
+		osgCamera->addPreDrawCallback(mTextureBlitter);
+	}
+
 	// Create HUD panel overlay
 	{
 		mPanelGroup = new osg::Group();
-		mWindow->getRenderTargets().back().target->getOsgCamera()->addChild(mPanelGroup);
+		osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().back().target->getOsgCamera();
+		osgCamera->addChild(mPanelGroup);
 
 		auto program = mEngineRoot->programs.getRequiredProgram("hudGeometry");
 		auto stateSet = mPanelGroup->getOrCreateStateSet();
@@ -440,6 +491,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 void SkyboltClient::clbkDestroyRenderWindow(bool fastclose)
 {
 	mWindow.reset();
+	mEntities.clear();
 }
 
 sim::Matrix3 toSkyboltMatrix3(const MATRIX3& m)
@@ -641,7 +693,7 @@ void SkyboltClient::clbkRenderScene()
 	// Render
 	mWindow->render();
 
-	SwapBuffers(gldc);
+	SwapBuffers(mGldc);
 }
 
 }; // namespace oapi

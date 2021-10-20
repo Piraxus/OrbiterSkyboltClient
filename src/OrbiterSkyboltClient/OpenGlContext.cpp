@@ -1,6 +1,5 @@
 #include "OpenGlContext.h"
 
-#include <gl/GL.h>
 #include <stdexcept>
 
 // Code based on example from Nick Rolfe
@@ -32,6 +31,7 @@ typedef BOOL WINAPI wglChoosePixelFormatARB_type(HDC hdc, const int *piAttribILi
 	const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
 wglChoosePixelFormatARB_type *wglChoosePixelFormatARB;
 
+PFNGLCOPYIMAGESUBDATANVPROC glCopyImageSubData;
 
 static WNDCLASSEX createDummyWindowClass()
 {
@@ -101,7 +101,8 @@ static void initOpenglExtensions()
 
 	wglCreateContextAttribsARB = (wglCreateContextAttribsARB_type*)wglGetProcAddress("wglCreateContextAttribsARB");
 	wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress("wglChoosePixelFormatARB");
-
+	glCopyImageSubData = (PFNGLCOPYIMAGESUBDATANVPROC)wglGetProcAddress("glCopyImageSubDataEXT");
+	
 	wglMakeCurrent(dummyDc, 0);
 	wglDeleteContext(dummy_context);
 	ReleaseDC(dummyWindow, dummyDc);

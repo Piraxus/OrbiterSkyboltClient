@@ -12,6 +12,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #define OAPI_STATIC
 #include "GraphicsAPI.h"
+#include "TextureBlitter.h"
 
 #include <SkyboltEngine/SkyboltEngineFwd.h>
 #include <SkyboltSim/SkyboltSimFwd.h>
@@ -67,7 +68,7 @@ public:
 
 	void clbkPreOpenPopup () override {}
 
-	bool clbkFilterElevation(OBJHANDLE hPlanet, int ilat, int ilng, int lvl, double elev_res, INT16* elev) override { return false; } // MTODO: should not be required
+	bool clbkFilterElevation(OBJHANDLE hPlanet, int ilat, int ilng, int lvl, double elev_res, INT16* elev) override { return false; }
 
 	ParticleStream *clbkCreateParticleStream (PARTICLESTREAMSPEC *pss) override;
 
@@ -114,12 +115,12 @@ public:
 
 	DWORD clbkGetDeviceColour (BYTE r, BYTE g, BYTE b) override { return ((DWORD)r << 16) + ((DWORD)g << 8) + (DWORD)b; }
 
-	bool clbkBlt (SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE src, DWORD flag = 0) const override { return false; }
+	bool clbkBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE src, DWORD flag = 0) const override;
 
-	bool clbkBlt (SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE src, DWORD srcx, DWORD srcy, DWORD w, DWORD h, DWORD flag = 0) const override { return false; }
+	bool clbkBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE src, DWORD srcx, DWORD srcy, DWORD w, DWORD h, DWORD flag = 0) const override;
 
-	bool clbkScaleBlt (SURFHANDLE tgt, DWORD tgtx, DWORD tgty, DWORD tgtw, DWORD tgth,
-		                       SURFHANDLE src, DWORD srcx, DWORD srcy, DWORD srcw, DWORD srch, DWORD flag = 0) const override { return false; }
+	bool clbkScaleBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, DWORD tgtw, DWORD tgth,
+		SURFHANDLE src, DWORD srcx, DWORD srcy, DWORD srcw, DWORD srch, DWORD flag = 0) const override;
 
 	int clbkBeginBltGroup (SURFHANDLE tgt) override;
 
@@ -186,6 +187,8 @@ private:
 	std::map<SURFHANDLE, osg::ref_ptr<osg::Texture2D>> mTextures;
 	std::map<SURFHANDLE, std::shared_ptr<OsgSketchpad>> mSketchpads;
 	std::set<SkyboltParticleStream*> mParticleStreams;
+	osg::ref_ptr<TextureBlitter> mTextureBlitter;
+	HDC mGldc = nullptr;
 
 }; // SkyboltClient
 
