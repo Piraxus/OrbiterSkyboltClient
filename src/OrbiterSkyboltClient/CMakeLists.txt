@@ -14,7 +14,7 @@ set(LIBS
 	${OPENGL_LIBRARIES}
 )
 
-add_library(OrbiterSkyboltClient SHARED ${SOURCE})
+add_library(OrbiterSkyboltClient SHARED ${SOURCE} SkyboltClient.rc)
 target_link_libraries (OrbiterSkyboltClient ${LIBS})
 
 set(ORBITER_PLUGINS_DIRECTORY "" CACHE STRING "Orbiter Plugins Directory")

@@ -1,0 +1,19 @@
+#define IDS_STRING1                     1
+#define IDS_INFO                        1000
+#define IDS_TYPE                        1001
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_STRING1             "Skybolt: An OpenGL Orbiter Graphics Client Plugin.\r\n\r\nDeveloped by Matthew Reid\r\n\r\n. The source code is available at https://github.com/Piraxus/OrbiterSkyboltClient"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_INFO                "Skybolt Graphics Client:\r\n\r\nA render engine plugin for Orbiter."
+    IDS_TYPE                "Graphics engines"
+END
