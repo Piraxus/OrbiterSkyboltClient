@@ -76,9 +76,9 @@ public: // oapi::Sketchpad interface
 
 	DWORD SetTextColor(DWORD col) override;
 
-	DWORD SetBackgroundColor(DWORD col) override { return 0; }
+	DWORD SetBackgroundColor(DWORD col) override;
 
-	void SetBackgroundMode(BkgMode mode) override {}
+	void SetBackgroundMode(BkgMode mode) override;
 
 	DWORD GetCharSize() override;
 
@@ -115,6 +115,8 @@ private:
 	mutable OsgPen* mPen = nullptr;
 	mutable OsgBrush* mBrush = nullptr;
 	DWORD mTextColor = 0;
+	DWORD mTextBackgroundColor = 0;
+	BkgMode mTextBackgroundMode = BK_TRANSPARENT;
 	int mTextAlign = 0; // bitfield of enum type NVGalign
 	osg::Vec2i mOrigin = osg::Vec2i(0, 0);
 	osg::Vec2i mPenPosition = osg::Vec2i(0, 0);

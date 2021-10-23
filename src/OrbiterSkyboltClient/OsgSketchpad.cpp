@@ -75,6 +75,7 @@ struct TextCommand : SketchpadCommand
 	osg::Vec2i point;
 	std::string text;
 	osg::Vec4i color;
+	std::optional<osg::Vec4i> backgroundColor;
 	int align;
 	OsgFont font;
 };
@@ -191,6 +192,16 @@ public:
 				nvgResetTransform(vg);
 				nvgTranslate(vg, text->point.x(), text->point.y());
 				nvgRotate(vg, text->font.rotationRadians);
+
+				if (text->backgroundColor)
+				{
+					float bounds[4];
+					nvgTextBounds(vg, 0, 0, text->text.c_str(), NULL, bounds);
+					nvgBeginPath(vg);
+					nvgRect(vg, bounds[0],bounds[1], bounds[2]-bounds[0], bounds[3]-bounds[1]);
+					nvgFillColor(vg, nvgRGBA(text->backgroundColor->r(), text->backgroundColor->g(), text->backgroundColor->b(), text->backgroundColor->a()));
+					nvgFill(vg);
+				}
 
 				nvgFillColor(vg, nvgRGBA(text->color.r(), text->color.g(), text->color.b(), text->color.a()));
 				nvgText(vg, 0, 0, text->text.c_str(), nullptr);
@@ -315,6 +326,18 @@ DWORD OsgSketchpad::SetTextColor(DWORD col)
 	return oldTextColor;
 }
 
+DWORD OsgSketchpad::SetBackgroundColor(DWORD col)
+{
+	DWORD oldTextBackgroundColor = mTextBackgroundColor;
+	mTextBackgroundColor = col;
+	return oldTextBackgroundColor;
+}
+
+void OsgSketchpad::SetBackgroundMode(BkgMode mode)
+{
+	mTextBackgroundMode = mode;
+}
+
 static float getCharacterWidth(const OsgFont& font)
 {
 	return font.heightPixels * 0.7f;
@@ -362,6 +385,12 @@ bool OsgSketchpad::Text(int x, int y, const char *str, int len)
 		c->color = rgbIntToVec4iColor(mTextColor);
 		c->align = mTextAlign;
 		c->font = *mFont;
+
+		if (mTextBackgroundMode == BkgMode::BK_OPAQUE)
+		{
+			c->backgroundColor = rgbIntToVec4iColor(mTextBackgroundColor);
+		}
+
 		mDrawable->addCommand(c);
 		return true;
 	}
