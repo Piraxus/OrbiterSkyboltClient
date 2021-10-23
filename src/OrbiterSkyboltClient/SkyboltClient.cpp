@@ -8,13 +8,14 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "OpenGlContext.h"
+
 #define ORBITER_MODULE
 #include "OrbiterAPI.h"
 
 #include "ModelFactory.h"
 #include "OrbiterEntityFactory.h"
 #include "ObjectUtil.h"
-#include "OpenGlContext.h"
 #include "OrbiterVisibilityCategory.h"
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
@@ -37,7 +38,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/RenderTarget/RenderTexture.h>
 #include <SkyboltVis/RenderTarget/Viewport.h>
 #include <SkyboltVis/RenderTarget/ViewportHelpers.h>
-#include "SkyboltVis/TextureGenerator/TextureGeneratorCameraFactory.h"
 #include <SkyboltSim/Spatial/Geocentric.h>
 #include <SkyboltSim/System/SimStepper.h>
 #include <SkyboltSim/System/System.h>
@@ -243,7 +243,23 @@ static osg::ref_ptr<osg::Texture2D> createOrbiterRenderTexture(int width, int he
 	return texture;
 }
 
-vis::TextureGeneratorCameraFactory factory;
+static osg::ref_ptr<osg::Camera> createSketchpadCamera(osg::ref_ptr<osg::Texture> outputTexture)
+{
+	assert(!outputTextures.empty());
+	osg::ref_ptr<osg::Camera> camera = new osg::Camera;
+	camera->setClearMask(0); // Sketchpad will be cleared on request by clbkFillSurface()
+	camera->setViewport(0, 0, outputTexture->getTextureWidth(), outputTexture->getTextureHeight());
+	camera->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
+	camera->setRenderOrder(osg::Camera::PRE_RENDER);
+	camera->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+	camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT);
+
+	camera->attach(osg::Camera::BufferComponent(osg::Camera::COLOR_BUFFER0), outputTexture);
+	// nanoVG requires stencil buffer
+	camera->attach(osg::Camera::PACKED_DEPTH_STENCIL_BUFFER, GL_DEPTH_STENCIL_EXT);
+
+	return camera;
+}
 
 SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 {
@@ -257,7 +273,7 @@ SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 			//throw std::runtime_error("Invalid render target size requested: " + std::to_string(w) + " x " + std::to_string(h));
 		}
 
-		osg::ref_ptr<osg::Camera> camera = factory.createCamera({texture}, /* clear */ false);
+		osg::ref_ptr<osg::Camera> camera = createSketchpadCamera(texture);
 		SURFHANDLE handle = texture.get();
 		mTextures[handle] = texture;
 
@@ -369,6 +385,49 @@ Sketchpad* SkyboltClient::clbkGetSketchpad(SURFHANDLE surf)
 	}
 
 	return nullptr;
+}
+
+Font* SkyboltClient::clbkCreateFont(int height, bool prop, const char* face, oapi::Font::Style style, int orientation) const
+{
+	auto font = std::make_shared<OsgFont>();
+	font->name = face;
+	font->heightPixels = std::abs(height); // note: windows API heights can be negative, indicating 'character height' instead of 'cell height'
+	font->rotationRadians = -osg::DegreesToRadians(orientation * 0.1f);
+	mFonts[font.get()] = font;
+	return font.get();
+}
+
+void SkyboltClient::clbkReleaseFont(Font* font) const
+{
+	mFonts.erase(font);
+}
+
+Pen *SkyboltClient::clbkCreatePen(int style, int width, DWORD col) const
+{
+	auto pen = std::make_shared<OsgPen>();
+	pen->style = OsgPen::toStyle(style);
+	pen->width = width;
+	pen->color = rgbIntToVec4iColor(col);
+	mPens[pen.get()] = pen;
+	return pen.get();
+}
+
+void SkyboltClient::clbkReleasePen(Pen *pen) const
+{
+	mPens.erase(pen);
+}
+
+Brush* SkyboltClient::clbkCreateBrush(DWORD col) const
+{
+	auto brush = std::make_shared<OsgBrush>();
+	brush->color = rgbIntToVec4iColor(col);
+	mBrushes[brush.get()] = brush;
+	return brush.get();
+}
+
+void SkyboltClient::clbkReleaseBrush(Brush* brush) const
+{
+	mBrushes.erase(brush);
 }
 
 static void WriteLog(const std::string& str)

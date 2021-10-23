@@ -1,9 +1,6 @@
 #pragma once
 
+#include <GL/glew.h>
 #include <windows.h>
-#include <gl/GL.h>
-#include "ThirdParty/GL/glext.h"
 
-HGLRC createOpenGlContext(HDC realDc);
-
-extern PFNGLCOPYIMAGESUBDATANVPROC glCopyImageSubData;
+HGLRC createOpenGlContext(HDC real_dc);

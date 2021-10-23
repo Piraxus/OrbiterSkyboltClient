@@ -1,5 +1,5 @@
-#include "TextureBlitter.h"
 #include "OpenGlContext.h"
+#include "TextureBlitter.h"
 #include <osg/RenderInfo>
 
 #include <gl/GL.h>

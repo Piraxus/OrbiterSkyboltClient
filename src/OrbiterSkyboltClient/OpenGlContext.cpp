@@ -31,8 +31,6 @@ typedef BOOL WINAPI wglChoosePixelFormatARB_type(HDC hdc, const int *piAttribILi
 	const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
 wglChoosePixelFormatARB_type *wglChoosePixelFormatARB;
 
-PFNGLCOPYIMAGESUBDATANVPROC glCopyImageSubData;
-
 static WNDCLASSEX createDummyWindowClass()
 {
 	// Before we can load extensions, we need a dummy OpenGL context, created using a dummy window.
@@ -101,7 +99,12 @@ static void initOpenglExtensions()
 
 	wglCreateContextAttribsARB = (wglCreateContextAttribsARB_type*)wglGetProcAddress("wglCreateContextAttribsARB");
 	wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress("wglChoosePixelFormatARB");
-	glCopyImageSubData = (PFNGLCOPYIMAGESUBDATANVPROC)wglGetProcAddress("glCopyImageSubDataEXT");
+
+	GLenum err = glewInit();
+	if (GLEW_OK != err)
+	{
+		throw std::runtime_error("Error initializing GLEW: " + std::string((char*)glewGetErrorString(err)));
+	}
 	
 	wglMakeCurrent(dummyDc, 0);
 	wglDeleteContext(dummy_context);

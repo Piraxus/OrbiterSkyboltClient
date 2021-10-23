@@ -136,17 +136,17 @@ public:
 
 	void clbkReleaseSketchpad (Sketchpad *sp) override {}
 
-	Font *clbkCreateFont (int height, bool prop, const char *face, oapi::Font::Style style = oapi::Font::NORMAL, int orientation = 0) const override { return NULL; }
+	Font *clbkCreateFont(int height, bool prop, const char *face, oapi::Font::Style style = oapi::Font::NORMAL, int orientation = 0) const override;
 
-	void clbkReleaseFont (Font *font) const override {}
+	void clbkReleaseFont(Font *font) const override;
 
-	Pen *clbkCreatePen (int style, int width, DWORD col) const override { return NULL; }
+	Pen *clbkCreatePen(int style, int width, DWORD col) const override;
 
-	void clbkReleasePen (Pen *pen) const override {}
+	void clbkReleasePen(Pen *pen) const override;
 
-	Brush *clbkCreateBrush (DWORD col) const override { return NULL; }
+	Brush *clbkCreateBrush(DWORD col) const override;
 
-	void clbkReleaseBrush (Brush *brush) const override {}
+	void clbkReleaseBrush(Brush *brush) const override;
 
 	HDC clbkGetSurfaceDC (SURFHANDLE surf) override { return NULL; }
 
@@ -182,12 +182,18 @@ private:
 	std::unique_ptr<OverlayPanelFactory> mOverlayPanelFactory;
 	std::unique_ptr<skybolt::vis::EmbeddedWindow> mWindow;
 	skybolt::sim::EntityPtr mSimCamera;
+
 	osg::ref_ptr<osg::Group> mPanelGroup;
 	std::map<OBJHANDLE, skybolt::sim::EntityPtr> mEntities;
 	std::map<SURFHANDLE, osg::ref_ptr<osg::Texture2D>> mTextures;
 	std::map<SURFHANDLE, std::shared_ptr<OsgSketchpad>> mSketchpads;
 	std::set<SkyboltParticleStream*> mParticleStreams;
 	osg::ref_ptr<TextureBlitter> mTextureBlitter;
+
+	mutable std::map<oapi::Pen*, std::shared_ptr<oapi::Pen>> mPens;
+	mutable std::map<oapi::Brush*, std::shared_ptr<oapi::Brush>> mBrushes;
+	mutable std::map<oapi::Font*, std::shared_ptr<oapi::Font>> mFonts;
+
 	HDC mGldc = nullptr;
 
 }; // SkyboltClient

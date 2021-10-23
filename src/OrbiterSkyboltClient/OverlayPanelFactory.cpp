@@ -19,7 +19,7 @@ const DWORD SPEC_INHERIT = (DWORD)(-2); // "inherit" material/texture flag
 
 using namespace skybolt;
 
-static osg::ref_ptr<osg::Geometry> create2dPanelGeometry(const MESHGROUP& data, const osg::Vec2f& scale, const osg::Vec2f& offset)
+static osg::ref_ptr<osg::Geometry> create2dPanelGeometry(const MESHGROUP& data, const osg::Vec2f& scale, const osg::Vec2f& offset, bool flipV = false)
 {
 	osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
 
@@ -31,7 +31,7 @@ static osg::ref_ptr<osg::Geometry> create2dPanelGeometry(const MESHGROUP& data, 
 	{
 		const auto& v = data.Vtx[i];
 		(*vertices)[i] = osg::Vec3f(v.x * scale.x() + offset.x(), v.y * scale.y() + offset.y(), 0);
-		(*uvs)[i] = osg::Vec2f(v.tu, v.tv);
+		(*uvs)[i] = osg::Vec2f(v.tu, flipV ? 1.f - v.tv : v.tv);
 	}
 
 	for (int i = 0; i < (int)data.nIdx; i += 3)
@@ -70,6 +70,8 @@ osg::ref_ptr<osg::Geode> OverlayPanelFactory::createOverlayPanel(SURFHANDLE *hSu
 		MESHGROUP *grp = oapiMeshGroup(hMesh, i);
 		if (grp->UsrFlag & 2) continue; // skip this group
 
+		bool flipV = false;
+
 		SURFHANDLE newsurf = nullptr;
 		if (grp->TexIdx == SPEC_DEFAULT) {
 			newsurf = 0;
@@ -80,6 +82,7 @@ osg::ref_ptr<osg::Geode> OverlayPanelFactory::createOverlayPanel(SURFHANDLE *hSu
 		else if (grp->TexIdx >= TEXIDX_MFD0) {
 			int mfdidx = grp->TexIdx - TEXIDX_MFD0;
 			newsurf = mMfdSurfaceProvider(mfdidx);
+			flipV = true; // MFD V coordinates need to be flipped. TODO: investigate why.
 			if (!newsurf) continue;
 		}
 		else if (hSurf) {
@@ -89,7 +92,7 @@ osg::ref_ptr<osg::Geode> OverlayPanelFactory::createOverlayPanel(SURFHANDLE *hSu
 			newsurf = oapiGetTextureHandle(hMesh, grp->TexIdx + 1);
 		}
 
-		osg::ref_ptr<osg::Geometry> geometry = create2dPanelGeometry(*grp, scale, offset);
+		osg::ref_ptr<osg::Geometry> geometry = create2dPanelGeometry(*grp, scale, offset, flipV);
 		geometry->setCullingActive(false);
 		geode->addDrawable(geometry);
 
