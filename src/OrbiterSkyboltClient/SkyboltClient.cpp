@@ -16,7 +16,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "ModelFactory.h"
 #include "OrbiterEntityFactory.h"
 #include "ObjectUtil.h"
-#include "OrbiterVisibilityCategory.h"
+#include "OrbiterModel.h"
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
@@ -25,6 +25,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltEngine/EngineRoot.h>
 #include <SkyboltEngine/EngineRootFactory.h>
 #include <SkyboltEngine/SimVisBinding/CameraSimVisBinding.h>
+#include <SkyboltEngine/VisObjectsComponent.h>
 #include <SkyboltSim/Entity.h>
 #include <SkyboltSim/World.h>
 #include <SkyboltSim/CameraController/CameraControllerSelector.h>
@@ -54,6 +55,7 @@ namespace oapi {
 
 HINSTANCE g_hInst;
 SkyboltClient* g_client = nullptr;
+OBJHANDLE g_earth = nullptr;
 
 DLLCLBK void InitModule(HINSTANCE hDLL)
 {
@@ -78,6 +80,7 @@ DLLCLBK void ExitModule(HINSTANCE hDLL)
 SkyboltClient::SkyboltClient(HINSTANCE hInstance) :
 	GraphicsClient(hInstance)
 {
+	g_earth = nullptr;
 }
 
 SkyboltClient::~SkyboltClient()
@@ -562,8 +565,6 @@ sim::Matrix3 toSkyboltMatrix3(const MATRIX3& m)
 	return sim::Matrix3(x, z, y);
 }
 
-OBJHANDLE g_earth = nullptr;
-
 sim::Vector3 toSkyboltPosFromGlobal(const VECTOR3& gpos)
 {
 	if (g_earth)
@@ -577,7 +578,7 @@ sim::Vector3 toSkyboltPosFromGlobal(const VECTOR3& gpos)
 	return sim::Vector3(0, 0, 0);
 }
 
-sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
+static sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
 {
 	if (g_earth)
 	{
@@ -588,15 +589,17 @@ sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
 	return sim::Quaternion();
 }
 
-static int getCameraVisibilityCategoryMask()
+static int isVisible(const OrbiterModel& model)
 {
-	if (oapiCameraInternal())
+	int vismode = model.getMeshVisibilityMode();
+
+	if (oapiCameraInternal() && model.getOwningObject() == oapiGetFocusObject())
 	{
-		return (oapiCockpitMode() == COCKPIT_VIRTUAL ? OrbiterVisibilityCategory::virtualCockpitView : OrbiterVisibilityCategory::cockpitView);
+		return (oapiCockpitMode() == COCKPIT_VIRTUAL) ? (vismode & MESHVIS_VC) : (vismode & MESHVIS_COCKPIT);
 	}
 	else
 	{
-		return OrbiterVisibilityCategory::externalView;
+		return vismode & MESHVIS_EXTERNAL;
 	}
 }
 
@@ -613,9 +616,6 @@ static void updateCamera(sim::Entity& camera)
 
 	auto component = camera.getFirstComponentRequired<sim::CameraComponent>();
 	component->getState().fovY = float(oapiCameraAperture()) * 2.0f;
-
-	auto visCamera = getVisCamera(camera);
-	visCamera->setVisibilityCategoryMask(getCameraVisibilityCategoryMask());
 }
 
 static sim::EntityPtr createEntity(const OrbiterEntityFactory& factory, OBJHANDLE object)
@@ -628,7 +628,45 @@ static sim::EntityPtr createEntity(const OrbiterEntityFactory& factory, OBJHANDL
 	return factory.createEntity(object);
 }
 
-static void updateEntity(OBJHANDLE object, sim::Entity& entity)
+void SkyboltClient::updateVirtualCockpitTextures(OrbiterModel& model) const
+{
+	auto program = mEngineRoot->programs.getRequiredProgram("unlitTextured");
+
+	// HUD
+	{
+		const VCHUDSPEC* hudspec;
+		SURFHANDLE surf = g_client->GetVCHUDSurface(&hudspec);
+
+		if (surf && model.getMeshId() == hudspec->nmesh)
+		{
+			auto texture = findOptional(mTextures, surf);
+			if (texture)
+			{
+				model.useMeshAsMfd(hudspec->ngroup, program, /* alphaBlend */ true);
+				model.setMeshTexture(hudspec->ngroup, *texture);
+			}
+		}
+	}
+
+	// MFDs
+	for (int mfd = 0; mfd < MAXMFD; ++mfd)
+	{
+		const VCMFDSPEC* mfdspec;
+		SURFHANDLE surf = g_client->GetVCMFDSurface(mfd, &mfdspec);
+
+		if (surf && model.getMeshId() == mfdspec->nmesh)
+		{
+			auto texture = findOptional(mTextures, surf);
+			if (texture)
+			{
+				model.useMeshAsMfd(mfdspec->ngroup, program, /* alphaBlend */ false);
+				model.setMeshTexture(mfdspec->ngroup, *texture);
+			}
+		}
+	}
+}
+
+void SkyboltClient::updateEntity(OBJHANDLE object, sim::Entity& entity) const
 {
 	VECTOR3 gpos;
 	oapiGetGlobalPos(object, &gpos);
@@ -641,11 +679,35 @@ static void updateEntity(OBJHANDLE object, sim::Entity& entity)
 	MATRIX3 mat;
 	oapiGetRotationMatrix(object, &mat);
 	setOrientation(entity, sim::Quaternion(toSkyboltOriFromGlobal(mat)));
+
+	// Update mesh for camera view
+	auto visObject = entity.getFirstComponent<VisObjectsComponent>();
+	if (visObject)
+	{
+		bool isVirtualCockpit = (oapiCameraInternal() && (object == oapiGetFocusObject()) && (oapiCockpitMode() == COCKPIT_VIRTUAL));
+		for (const auto& object : visObject->getObjects())
+		{
+			auto model = dynamic_cast<OrbiterModel*>(object.get());
+			if (model)
+			{
+				model->setVisible(isVisible(*model));
+
+				if (isVirtualCockpit)
+				{
+					updateVirtualCockpitTextures(*model);
+				}
+			}
+		}
+	}
 }
 
 SURFHANDLE SkyboltClient::getSurfaceHandleFromTextureId(MESHHANDLE mesh, int id) const
 {
-	if (id < TEXIDX_MFD0)
+	if (id == SPEC_DEFAULT)
+	{
+		return nullptr;
+	}
+	else if (id < TEXIDX_MFD0)
 	{
 		return oapiGetTextureHandle(mesh, id + 1); // texture ID's start at 1 because 0 is reserved for no assigned texture.
 	}

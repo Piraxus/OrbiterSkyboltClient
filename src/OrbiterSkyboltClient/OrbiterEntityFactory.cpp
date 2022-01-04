@@ -10,8 +10,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "OrbiterEntityFactory.h"
 #include "ModelFactory.h"
+#include "OrbiterModel.h"
 #include "ObjectUtil.h"
-#include "OrbiterVisibilityCategory.h"
 #include <SkyboltEngine/EntityFactory.h>
 #include <SkyboltEngine/VisObjectsComponent.h>
 #include <SkyboltEngine/SimVisBinding/SimVisBinding.h>
@@ -45,7 +45,7 @@ sim::EntityPtr OrbiterEntityFactory::createEntity(OBJHANDLE object) const
 	switch (oapiGetObjectType(object))
 	{
 		case OBJTP_VESSEL:
-			return createVessel(oapiGetVesselInterface(object));
+			return createVessel(object, oapiGetVesselInterface(object));
 		case OBJTP_PLANET:
 			return createPlanet(object);
 		//case OBJTP_STAR:
@@ -64,25 +64,7 @@ osg::Vec3d orbiterVector3ToOsg(const VECTOR3& v)
 	return osg::Vec3d(v.z, v.x, -v.y);
 }
 
-static int toVisibilityCategoryMask(int vismode)
-{
-	int mask = vis::VisibilityCategory::defaultCategories;
-	if (vismode & MESHVIS_COCKPIT)
-	{
-		mask |= OrbiterVisibilityCategory::cockpitView;
-	}
-	if (vismode & MESHVIS_VC)
-	{
-		mask |= OrbiterVisibilityCategory::virtualCockpitView;
-	}
-	if (vismode & MESHVIS_EXTERNAL)
-	{
-		mask |= OrbiterVisibilityCategory::externalView;
-	}
-	return mask;
-}
-
-sim::EntityPtr OrbiterEntityFactory::createVessel(VESSEL* vessel) const
+sim::EntityPtr OrbiterEntityFactory::createVessel(OBJHANDLE object, VESSEL* vessel) const
 {
 	sim::EntityPtr entity = std::make_shared<sim::Entity>();
 
@@ -106,9 +88,7 @@ sim::EntityPtr OrbiterEntityFactory::createVessel(VESSEL* vessel) const
 				VECTOR3 offset;
 				vessel->GetMeshOffset(i, offset);
 
-				vis::ModelPtr model = mModelFactory->createModel(hMesh);
-				model->setVisibilityCategoryMask(toVisibilityCategoryMask(vismode));
-
+				vis::ModelPtr model = mModelFactory->createModel(hMesh, object, i, vismode);
 				visObjectsComponent->addObject(model);
 
 				SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,
@@ -152,7 +132,7 @@ sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
 	for (int i = 0; i < nsbs; i++)
 	{
 		MESHHANDLE mesh = sbs[i];
-		vis::ModelPtr model = mModelFactory->createModel(mesh);
+		vis::ModelPtr model = mModelFactory->createModel(mesh, object, i, MESHVIS_EXTERNAL);
 		visObjectsComponent->addObject(model);
 
 		SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,
@@ -164,7 +144,7 @@ sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
 	for (int i = 0; i < nsas; i++)
 	{
 		MESHHANDLE mesh = sas[i];
-		vis::ModelPtr model = mModelFactory->createModel(mesh);
+		vis::ModelPtr model = mModelFactory->createModel(mesh, object, i, MESHVIS_EXTERNAL);
 		visObjectsComponent->addObject(model);
 
 		SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,

@@ -9,10 +9,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 #include "ModelFactory.h"
+#include "OrbiterModel.h"
+#include "OrbiterTextureIds.h"
 
 #include <SkyboltVis/OsgImageHelpers.h>
 #include <SkyboltVis/OsgStateSetHelpers.h>
-#include <SkyboltVis/Renderable/Model/Model.h>
 #include <SkyboltVis/OsgGeometryFactory.h>
 #include <SkyboltVis/OsgGeometryHelpers.h>
 #include <osg/Geode>
@@ -30,11 +31,16 @@ ModelFactory::ModelFactory(const ModelFactoryConfig& config) :
 {
 }
 
-std::unique_ptr<skybolt::vis::Model> ModelFactory::createModel(MESHHANDLE hMesh) const
+std::unique_ptr<OrbiterModel> ModelFactory::createModel(MESHHANDLE hMesh, OBJHANDLE handle, int meshId, int meshVisibilityMode) const
 {
-	vis::ModelConfig config;
-	config.node = getOrCreateMesh(hMesh);
-	return std::make_unique<vis::Model>(config);
+	auto result = getOrCreateMesh(hMesh);
+	OrbiterModelConfig config;
+	config.node = result.node;
+	config.owningObject = handle;
+	config.meshId = meshId;
+	config.meshVisibilityMode = meshVisibilityMode;
+	config.meshGroupToGeometryIndex = result.meshGroupToGeometryIndex;
+	return std::make_unique<OrbiterModel>(config);
 }
 
 osg::ref_ptr<osg::Geometry> ModelFactory::createGeometry(const MESHGROUP& data)
@@ -82,7 +88,7 @@ osg::ref_ptr<osg::Geometry> ModelFactory::createGeometry(const MESHGROUP& data)
 	return geometry;
 }
 
-osg::ref_ptr<osg::Node> ModelFactory::getOrCreateMesh(MESHHANDLE mesh) const
+ModelFactory::CreateMeshResult ModelFactory::getOrCreateMesh(MESHHANDLE mesh) const
 {
 	auto i = mMeshCache.find(mesh);
 	if (i != mMeshCache.end())
@@ -94,52 +100,82 @@ osg::ref_ptr<osg::Node> ModelFactory::getOrCreateMesh(MESHHANDLE mesh) const
 		osg::Geode* geode = new osg::Geode();
 
 		DWORD nGrp = oapiMeshGroupCount(mesh);
+
+		ModelFactory::CreateMeshResult result;
+		result.node = geode;
+		result.meshGroupToGeometryIndex.resize(nGrp);
+
 		for (DWORD i = 0; i < nGrp; i++)
 		{
 			MESHGROUP* group = oapiMeshGroup(mesh, i);
 			if (group->nVtx > 0 && group->nIdx > 0)
 			{
+				result.meshGroupToGeometryIndex[i] = geode->getNumDrawables();
+
 				auto geometry = createGeometry(*group);
 
 				populateStateSet(*geometry->getOrCreateStateSet(), mesh, *group);
 				geode->addDrawable(geometry);
 			}
+			else
+			{
+				result.meshGroupToGeometryIndex[i] = -1;
+			}
 		}
 
 		geode->getOrCreateStateSet()->setAttribute(mProgram);
-		mMeshCache[mesh] = geode;
-		return geode;
+
+		mMeshCache[mesh] = result;
+		return result;
 	}
 }
 
 
-osg::Vec4f toOsgVec4f(const COLOUR4& c)
+static osg::Vec4f toOsgVec4f(const COLOUR4& c)
 {
 	return reinterpret_cast<const osg::Vec4f&>(c);
 }
 
 void ModelFactory::populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, const MESHGROUP& group) const
 {
-	SURFHANDLE handle = mSurfaceHandleFromTextureIdProvider(mesh, group.TexIdx);
-
-	osg::ref_ptr<osg::Texture2D> texture = mTextureProvider(handle);
-	if (texture)
+	if (group.TexIdx == SPEC_INHERIT)
 	{
-		stateSet.setTextureAttributeAndModes(0, texture);
-		stateSet.addUniform(vis::createUniformSampler2d("albedoSampler", 0));
+		return;
 	}
-	else
+
+	if (group.TexIdx < TEXIDX_MFD0 || group.TexIdx == SPEC_DEFAULT) // not an MFD
 	{
-		stateSet.setDefine("UNIFORM_ALBEDO");
-
-		MATERIAL* material = oapiMeshMaterial(mesh, group.MtrlIdx);
-		osg::Vec4 albedo = material ? vis::srgbToLinear(toOsgVec4f((material->diffuse))) : osg::Vec4(0,0,0,1);
-
-		stateSet.addUniform(new osg::Uniform("albedoColor", albedo));
-
-		if (albedo.a() < 0.9999f)
+		osg::ref_ptr<osg::Texture2D> texture;
+		if (group.TexIdx != SPEC_DEFAULT)
 		{
-			vis::makeStateSetTransparent(stateSet, vis::TransparencyMode::Classic);
+			SURFHANDLE handle = mSurfaceHandleFromTextureIdProvider(mesh, group.TexIdx);
+			texture = mTextureProvider(handle);
 		}
+
+		if (texture)
+		{
+			stateSet.setTextureAttributeAndModes(0, texture);
+			stateSet.addUniform(vis::createUniformSampler2d("albedoSampler", 0));
+		}
+		else
+		{
+			stateSet.setDefine("UNIFORM_ALBEDO");
+
+			MATERIAL* material = oapiMeshMaterial(mesh, group.MtrlIdx);
+			osg::Vec4 albedo = material ? vis::srgbToLinear(toOsgVec4f((material->diffuse))) : osg::Vec4(0, 0, 0, 1);
+
+			stateSet.addUniform(new osg::Uniform("albedoColor", albedo));
+
+			if (albedo.a() < 0.9999f)
+			{
+				vis::makeStateSetTransparent(stateSet, vis::TransparencyMode::Classic);
+			}
+		}
+	}
+	else // MFD
+	{
+		// MFD texture will be set later
+		stateSet.addUniform(vis::createUniformSampler2d("albedoSampler", 0));
+		vis::makeStateSetTransparent(stateSet, vis::TransparencyMode::Classic);
 	}
 }

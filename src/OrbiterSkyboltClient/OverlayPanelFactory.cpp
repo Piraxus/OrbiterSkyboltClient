@@ -14,9 +14,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include <osg/Geometry>
 
-const DWORD SPEC_DEFAULT = (DWORD)(-1); // "default" material/texture flag
-const DWORD SPEC_INHERIT = (DWORD)(-2); // "inherit" material/texture flag
-
 using namespace skybolt;
 
 static osg::ref_ptr<osg::Geometry> create2dPanelGeometry(const MESHGROUP& data, const osg::Vec2f& scale, const osg::Vec2f& offset, bool flipV = false)
@@ -69,7 +66,7 @@ osg::ref_ptr<osg::Geode> OverlayPanelFactory::createOverlayPanel(SURFHANDLE *hSu
 	for (DWORD i = 0; i < ngrp; i++) {
 		MESHGROUP *grp = oapiMeshGroup(hMesh, i);
 		if (grp->UsrFlag & 2) continue; // skip this group
-
+		
 		bool flipV = false;
 
 		SURFHANDLE newsurf = nullptr;

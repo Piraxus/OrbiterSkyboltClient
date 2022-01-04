@@ -173,6 +173,8 @@ public:
 	void clbkStoreMeshPersistent(MESHHANDLE hMesh, const char *fname) override {}
 
 	private:
+		void updateVirtualCockpitTextures(OrbiterModel& model) const;
+		void updateEntity(OBJHANDLE object, skybolt::sim::Entity& entity) const;
 		void translateEntities();
 		SURFHANDLE getSurfaceHandleFromTextureId(MESHHANDLE mesh, int id) const;
 

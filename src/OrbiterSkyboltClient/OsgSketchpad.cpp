@@ -213,6 +213,9 @@ public:
 		nvgEndFrame(vg);
 
 		mCommands.clear();
+
+		// Cleanup OpenGL state after nanoVG
+		glDisable(GL_BLEND);
 	}
 
 	void addCommand(std::shared_ptr<SketchpadCommand> command)

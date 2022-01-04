@@ -10,44 +10,39 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
-#include "GraphicsAPI.h"
+#include <SkyboltVis/Renderable/Model/Model.h>
 
-#include <SkyboltEngine/SkyboltEngineFwd.h>
-#include <SkyboltSim/SkyboltSimFwd.h>
-#include <SkyboltVis/SkyboltVisFwd.h>
+#include "OrbiterAPI.h"
 
-#include <map>
-#include <memory>
+#include <osg/Texture2D>
 
-class ModelFactory;
-class VESSEL;
-
-struct OrbiterEntityFactoryConfig
+struct OrbiterModelConfig : public skybolt::vis::ModelConfig
 {
-	skybolt::EntityFactory* entityFactory;
-	skybolt::vis::ScenePtr scene;
-	std::shared_ptr<ModelFactory> modelFactory;
-	oapi::GraphicsClient* graphicsClient;
+	OBJHANDLE owningObject;
+	int meshId;
+	int meshVisibilityMode;
+	std::vector<int> meshGroupToGeometryIndex; //!< Maps orbiter mesh group ID to osg geometry ID. Index is -1 if the mesh group has no geometry
 };
 
-class OrbiterEntityFactory
+class OrbiterModel : public skybolt::vis::Model
 {
 public:
-	OrbiterEntityFactory(const OrbiterEntityFactoryConfig& config);
-	~OrbiterEntityFactory();
+	OrbiterModel(const OrbiterModelConfig& config);
 
-	//! Returns null if entity could not be created
-	skybolt::sim::EntityPtr createEntity(OBJHANDLE object) const;
+	void setMeshTexture(int groupId, const osg::ref_ptr<osg::Texture2D>& texture);
+	void useMeshAsMfd(int groupId, const osg::ref_ptr<osg::Program>& program, bool alphaBlend);
 
-	skybolt::sim::EntityPtr createVessel(OBJHANDLE object, VESSEL* vessel) const;
-
-	skybolt::sim::EntityPtr createPlanet(OBJHANDLE object) const;
-
-	skybolt::sim::EntityPtr createBase(OBJHANDLE object) const;
+	OBJHANDLE getOwningObject() const { return mOwningObject; }
+	int getMeshId() const { return mMeshId; }
+	int getMeshVisibilityMode() const { return mMeshVisibilityMode; }
 
 private:
-	skybolt::EntityFactory* mEntityFactory;
-	skybolt::vis::ScenePtr mScene;
-	std::shared_ptr<ModelFactory> mModelFactory;
-	oapi::GraphicsClient* mGraphicsClient;
+	osg::Drawable* getDrawable(int groupId) const; //!< Returns null if drawable not found for groupId
+
+private:
+	OBJHANDLE mOwningObject;
+	int mMeshId;
+	int mMeshVisibilityMode;
+	std::vector<int> mMeshGroupToGeometryIndex;
+	std::set<int> mMfdGroupIds;
 };

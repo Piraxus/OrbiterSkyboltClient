@@ -12,6 +12,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "GraphicsAPI.h"
 
+#include "OrbiterModel.h"
 #include <SkyboltVis/SkyboltVisFwd.h>
 
 #include <osg/Program>
@@ -34,17 +35,22 @@ class ModelFactory
 {
 public:
 	ModelFactory(const ModelFactoryConfig& config);
-	std::unique_ptr<skybolt::vis::Model> createModel(MESHHANDLE hMesh) const;
+	std::unique_ptr<OrbiterModel> createModel(MESHHANDLE hMesh, OBJHANDLE handle, int meshId, int meshVisibilityMode) const;
 
 	static osg::ref_ptr<osg::Geometry> createGeometry(const MESHGROUP& data);
 
 private:
-	osg::ref_ptr<osg::Node> getOrCreateMesh(MESHHANDLE mesh) const;
+	struct CreateMeshResult
+	{
+		osg::ref_ptr<osg::Node> node;
+		std::vector<int> meshGroupToGeometryIndex; //!< Maps orbiter mesh group ID to osg geometry ID. Index is -1 if the mesh group has no geometry
+	};
+	ModelFactory::CreateMeshResult getOrCreateMesh(MESHHANDLE mesh) const;
 	void populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, const MESHGROUP& group) const;
 
 private:
 	SurfaceHandleFromTextureIdProvider mSurfaceHandleFromTextureIdProvider;
 	TextureProvider mTextureProvider;
 	osg::ref_ptr<osg::Program> mProgram;
-	mutable std::map<MESHHANDLE, osg::ref_ptr<osg::Node>> mMeshCache;
+	mutable std::map<MESHHANDLE, CreateMeshResult> mMeshCache;
 };
