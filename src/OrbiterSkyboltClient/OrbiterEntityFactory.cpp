@@ -9,6 +9,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 #include "OrbiterEntityFactory.h"
+
+#include "DistantCelestialBodyFactory.h"
 #include "ModelFactory.h"
 #include "OrbiterModel.h"
 #include "ObjectUtil.h"
@@ -16,10 +18,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltEngine/VisObjectsComponent.h>
 #include <SkyboltEngine/SimVisBinding/SimVisBinding.h>
 #include <SkyboltSim/Entity.h>
+#include <SkyboltVis/Scene.h>
 #include <SkyboltSim/Components/NameComponent.h>
 #include <SkyboltSim/Components/Node.h>
 #include <SkyboltVis/Renderable/Model/Model.h>
-#include <SkyboltVis/Scene.h>
+#include <SkyboltVis/Shader/ShaderProgramRegistry.h>
 
 #include "VesselAPI.h"
 
@@ -30,12 +33,14 @@ OrbiterEntityFactory::OrbiterEntityFactory(const OrbiterEntityFactoryConfig& con
 	mEntityFactory(config.entityFactory),
 	mScene(config.scene),
 	mModelFactory(config.modelFactory),
-	mGraphicsClient(config.graphicsClient)
+	mGraphicsClient(config.graphicsClient),
+	mShaderPrograms(config.shaderPrograms)
 {
 	assert(mEntityFactory);
 	assert(mScene);
 	assert(mModelFactory);
 	assert(mGraphicsClient);
+	assert(mShaderPrograms);
 }
 
 OrbiterEntityFactory::~OrbiterEntityFactory() = default;
@@ -48,12 +53,10 @@ sim::EntityPtr OrbiterEntityFactory::createEntity(OBJHANDLE object) const
 			return createVessel(object, oapiGetVesselInterface(object));
 		case OBJTP_PLANET:
 			return createPlanet(object);
-		//case OBJTP_STAR:
-		//	return new vStar(_hObj, scene);
+		case OBJTP_STAR:
+			return createStar(object);
 		case OBJTP_SURFBASE:
 			return createBase(object);
-//		default:
-	//		return new vObject(_hObj, scene);
 		default:
 			return nullptr;
 	}
@@ -103,14 +106,82 @@ sim::EntityPtr OrbiterEntityFactory::createVessel(OBJHANDLE object, VESSEL* vess
 	return entity;
 }
 
+extern Orbiter *g_pOrbiter;
+
 sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 {
 	std::string name = getName(object);
-	if (name == "Earth")
+
+	double radius = oapiGetSize(object);
+
+	char cbuf[256];
+	mGraphicsClient->PlanetTexturePath(name.c_str(), cbuf);
+	std::string planetTexturePath = cbuf;
+
+	nlohmann::json planetJson = {
+		{"radius", radius},
+		{"ocean", false},
+		{"surface", {
+			{"elevation", {
+				{"format", "orbiterElevation"},
+				{"url", planetTexturePath},
+				{"maxLevel", 13} // TODO: determine correct maximum for tile source used
+			}},
+			{"albedo", {
+				{"format", "orbiterImage"},
+				{"url", planetTexturePath},
+				{"maxLevel", 13}
+			}},
+			{"uniformDetail", {
+				{"texture", "Environment/Ground/Ground026_1K_Color.jpg"}
+			}},
+		}}
+	};
+
+	if (oapiPlanetHasAtmosphere(object))
 	{
-		return mEntityFactory->createEntity("PlanetEarth");
+		// TODO: Map constants to our scattering model for planets other than Earth.
+		// Earth should always use the most accurate parameters from Bruenton's model.
+		//const ATMCONST* constants = oapiGetPlanetAtmConstants(object);
+		
+		if (name == "Earth")
+		{
+			planetJson["atmosphere"] = {
+				{"earthReyleighScatteringCoefficient", 1.24062e-6},
+				{"rayleighScaleHeight", 8000.0},
+				{"mieScaleHeight", 1200.0},
+				{"mieAngstromAlpha", 0.0},
+				{"mieAngstromBeta", 5.328e-3},
+				{"mieSingleScatteringAlbedo", 0.9},
+				{"miePhaseFunctionG", 0.8},
+				{"useEarthOzone", true}
+			};
+		}
+		else if (name == "Mars")
+		{
+			planetJson["atmosphere"] = {
+				{"reyleighScatteringCoefficientTable", {
+					{"coefficients", {5.8e-6, 5.8e-6, 20.0e-6}},
+					{"wavelengthsNm", {440, 510, 680}},
+				}},
+				{"rayleighScaleHeight", 11000.0},
+				{"mieScaleHeight", 1200.0},
+				{"mieAngstromAlpha", 0.0},
+				{"mieAngstromBeta", 5.328e-3},
+				{"mieSingleScatteringAlbedo", 0.9},
+				{"miePhaseFunctionG", 0.8},
+				{"useEarthOzone", true}
+			};
+		}
 	}
-	return nullptr;
+
+	nlohmann::json j = {
+		{"components", {{
+			{"planet", planetJson}
+		}}}
+	};
+
+	return mEntityFactory->createEntityFromJson(j, name, math::dvec3Zero(), math::dquatIdentity());
 }
 
 sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
@@ -129,7 +200,7 @@ sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
 	DWORD nsbs, nsas;
 	mGraphicsClient->GetBaseStructures(object, &sbs, &nsbs, &sas, &nsas);
 
-	for (int i = 0; i < nsbs; i++)
+	for (int i = 0; i < (int)nsbs; i++)
 	{
 		MESHHANDLE mesh = sbs[i];
 		vis::ModelPtr model = mModelFactory->createModel(mesh, object, i, MESHVIS_EXTERNAL);
@@ -141,7 +212,7 @@ sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
 		));
 		simVisBindingComponent->bindings.push_back(simVis);
 	}
-	for (int i = 0; i < nsas; i++)
+	for (int i = 0; i < (int)nsas; i++)
 	{
 		MESHHANDLE mesh = sas[i];
 		vis::ModelPtr model = mModelFactory->createModel(mesh, object, i, MESHVIS_EXTERNAL);
@@ -155,4 +226,17 @@ sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const
 	}
 
 	return entity;
+}
+
+skybolt::sim::EntityPtr OrbiterEntityFactory::createStar(OBJHANDLE object) const
+{
+	if (getName(object) == "Sun")
+	{
+		DistantCelestialBodyCreationArgs args;
+		args.scene = mScene.get();
+		args.objectHandle = object;
+		args.program = mShaderPrograms->getRequiredProgram("sun");
+		return createDistantCelestialBody(args);
+	}
+	return nullptr;
 }

@@ -116,7 +116,6 @@ HGLRC createOpenGlContext(HDC real_dc)
 {
 	initOpenglExtensions();
 
-	// Now we can choose a pixel format the modern way, using wglChoosePixelFormatARB.
 	int pixel_format_attribs[] = {
 		WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
 		WGL_SUPPORT_OPENGL_ARB,     GL_TRUE,
@@ -134,34 +133,33 @@ HGLRC createOpenGlContext(HDC real_dc)
 	wglChoosePixelFormatARB(real_dc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
 	if (!num_formats)
 	{
-		throw std::runtime_error("Failed to set the OpenGL 3.3 pixel format");
+		throw std::runtime_error("Failed to set the OpenGL pixel format");
 	}
 
 	PIXELFORMATDESCRIPTOR pfd;
 	DescribePixelFormat(real_dc, pixel_format, sizeof(pfd), &pfd);
 	if (!SetPixelFormat(real_dc, pixel_format, &pfd))
 	{
-		throw std::runtime_error("Failed to set the OpenGL 3.3 pixel format");
+		throw std::runtime_error("Failed to set the OpenGL pixel format");
 	}
 
-	// Specify that we want to create an OpenGL 3.3 core profile context
-	int gl33_attribs[] = {
+	int attributes[] = {
 		WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
 		WGL_CONTEXT_MINOR_VERSION_ARB, 5,
 		WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
 		0,
 	};
 
-	HGLRC gl33_context = wglCreateContextAttribsARB(real_dc, 0, gl33_attribs);
-	if (!gl33_context)
+	HGLRC context = wglCreateContextAttribsARB(real_dc, 0, attributes);
+	if (!context)
 	{
-		throw std::runtime_error("Failed to create OpenGL 3.3 context");
+		throw std::runtime_error("Failed to create OpenGL context");
 	}
 
-	if (!wglMakeCurrent(real_dc, gl33_context))
+	if (!wglMakeCurrent(real_dc, context))
 	{
-		throw std::runtime_error("Failed to activate OpenGL 3.3 rendering context");
+		throw std::runtime_error("Failed to activate OpenGL rendering context");
 	}
 
-	return gl33_context;
+	return context;
 }

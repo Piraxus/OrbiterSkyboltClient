@@ -130,7 +130,6 @@ ModelFactory::CreateMeshResult ModelFactory::getOrCreateMesh(MESHHANDLE mesh) co
 	}
 }
 
-
 static osg::Vec4f toOsgVec4f(const COLOUR4& c)
 {
 	return reinterpret_cast<const osg::Vec4f&>(c);
@@ -156,6 +155,7 @@ void ModelFactory::populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, co
 		{
 			stateSet.setTextureAttributeAndModes(0, texture);
 			stateSet.addUniform(vis::createUniformSampler2d("albedoSampler", 0));
+			//vis::makeStateSetTransparent(stateSet, vis::TransparencyMode::Classic);
 		}
 		else
 		{

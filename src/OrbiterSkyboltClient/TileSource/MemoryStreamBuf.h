@@ -6,17 +6,18 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 */
 
 #pragma once
 
-#include "GraphicsAPI.h"
+#include <streambuf>
 
-#include <SkyboltSim/SimMath.h>
-#include <string>
-
-std::string getName(OBJHANDLE object);
-
-skybolt::sim::Vector3 toSkyboltVector3GlobalAxes(const VECTOR3& v);
-
-skybolt::sim::Vector3 toSkyboltVector3BodyAxes(const VECTOR3& v);
+// From https://stackoverflow.com/questions/7781898/get-an-istream-from-a-char
+struct MemoryStreamBuf : std::streambuf
+{
+	MemoryStreamBuf(char* buffer, std::size_t sizeBytes)
+	{
+		setg(buffer, buffer, buffer + sizeBytes);
+	}
+};

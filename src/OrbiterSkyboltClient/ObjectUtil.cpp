@@ -22,12 +22,12 @@ std::string getName(OBJHANDLE object)
 	return std::string(name);
 }
 
-sim::Vector3 toSkyboltVector3(const VECTOR3& v)
+sim::Vector3 toSkyboltVector3GlobalAxes(const VECTOR3& v)
 {
-	return reinterpret_cast<const sim::Vector3&>(v.data);
+	return skybolt::sim::Vector3(v.x, v.z, v.y);
 }
 
-skybolt::sim::Vector3 toSkyboltVector3WithTransform(const VECTOR3& v)
+sim::Vector3 toSkyboltVector3BodyAxes(const VECTOR3& v)
 {
 	return skybolt::sim::Vector3(v.z, v.x, -v.y);
 }

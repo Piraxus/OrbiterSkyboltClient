@@ -15,12 +15,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "ModelFactory.h"
 #include "OrbiterEntityFactory.h"
-#include "ObjectUtil.h"
 #include "OrbiterModel.h"
+#include "ObjectUtil.h"
 #include "OsgSketchpad.h"
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
 #include "SkyboltParticleStream.h"
+#include "TileSource/OrbiterElevationTileSource.h"
+#include "TileSource/OrbiterImageTileSource.h"
 
 #include <SkyboltEngine/EngineRoot.h>
 #include <SkyboltEngine/EngineRootFactory.h>
@@ -55,7 +57,6 @@ namespace oapi {
 
 HINSTANCE g_hInst;
 SkyboltClient* g_client = nullptr;
-OBJHANDLE g_earth = nullptr;
 
 DLLCLBK void InitModule(HINSTANCE hDLL)
 {
@@ -80,7 +81,6 @@ DLLCLBK void ExitModule(HINSTANCE hDLL)
 SkyboltClient::SkyboltClient(HINSTANCE hInstance) :
 	GraphicsClient(hInstance)
 {
-	g_earth = nullptr;
 }
 
 SkyboltClient::~SkyboltClient()
@@ -184,6 +184,7 @@ ParticleStream* SkyboltClient::clbkCreateReentryStream(PARTICLESTREAMSPEC *pss,
 	OBJHANDLE hVessel)
 {
 	return new ParticleStream(this, pss);
+	// TODO
 	//auto stream = clbkCreateParticleStream(pss);
 	//stream->Attach(hVessel);
 	//return stream;
@@ -444,7 +445,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 	
 	mGldc = GetDC(hWnd);
 	createOpenGlContext(mGldc);
-
+	glEnable(GL_DEPTH_CLAMP); // MTODO
 	{
 		// Create engine
 		file::Path settingsFilename = file::getAppUserDataDirectory("Skybolt").append("Settings.json");
@@ -463,6 +464,14 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		try
 		{
 			mEngineRoot = EngineRootFactory::create({}, settings);
+
+			mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterElevation", [](const nlohmann::json& json) {
+				return std::make_shared<OrbiterElevationTileSource>(json.at("url"));
+			});
+
+			mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterImage", [](const nlohmann::json& json) {
+				return std::make_shared<OrbiterImageTileSource>(json.at("url"));
+			});
 		}
 		catch (const std::exception& e)
 		{
@@ -490,6 +499,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 			config.entityFactory = mEngineRoot->entityFactory.get();
 			config.scene = mEngineRoot->scene;
 			config.modelFactory = modelFactory;
+			config.shaderPrograms = &mEngineRoot->programs;
 
 			mEntityFactory = std::make_unique<OrbiterEntityFactory>(config);
 		}
@@ -514,8 +524,6 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 	}
 
 	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("Stars"));
-	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("SunBillboard"));
-	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("MoonBillboard"));
 
 	RECT rect;
 	GetClientRect(hWnd, &rect);
@@ -565,28 +573,9 @@ sim::Matrix3 toSkyboltMatrix3(const MATRIX3& m)
 	return sim::Matrix3(x, z, y);
 }
 
-sim::Vector3 toSkyboltPosFromGlobal(const VECTOR3& gpos)
-{
-	if (g_earth)
-	{
-		sim::LatLonAlt lla;
-		oapiGlobalToEqu(g_earth, gpos, &lla.lon, &lla.lat, &lla.alt);
-		double radius = 6371000;
-		lla.alt -= radius;
-		return sim::llaToGeocentric(lla, radius);
-	}
-	return sim::Vector3(0, 0, 0);
-}
-
 static sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
 {
-	if (g_earth)
-	{
-		MATRIX3 mat;
-		oapiGetRotationMatrix(g_earth, &mat);
-		return sim::Quaternion(glm::transpose(toSkyboltMatrix3(mat)) * toSkyboltMatrix3(m)) * glm::angleAxis(math::halfPiD(), sim::Vector3(0, 0, 1)) * glm::angleAxis(math::piD(), sim::Vector3(1, 0, 0));
-	}
-	return sim::Quaternion();
+	return sim::Quaternion(toSkyboltMatrix3(m)) * glm::angleAxis(math::halfPiD(), sim::Vector3(0, 0, 1)) * glm::angleAxis(math::piD(), sim::Vector3(1, 0, 0));
 }
 
 static int isVisible(const OrbiterModel& model)
@@ -608,7 +597,7 @@ static void updateCamera(sim::Entity& camera)
 	VECTOR3 gpos;
 	oapiCameraGlobalPos(&gpos);
 
-	setPosition(camera, toSkyboltPosFromGlobal(gpos));
+	setPosition(camera, toSkyboltVector3GlobalAxes(gpos));
 
 	MATRIX3 mat;
 	oapiCameraRotationMatrix(&mat);
@@ -616,16 +605,6 @@ static void updateCamera(sim::Entity& camera)
 
 	auto component = camera.getFirstComponentRequired<sim::CameraComponent>();
 	component->getState().fovY = float(oapiCameraAperture()) * 2.0f;
-}
-
-static sim::EntityPtr createEntity(const OrbiterEntityFactory& factory, OBJHANDLE object)
-{
-	std::string name = getName(object);
-	if (name == "Earth")
-	{
-		g_earth = object;
-	}
-	return factory.createEntity(object);
 }
 
 void SkyboltClient::updateVirtualCockpitTextures(OrbiterModel& model) const
@@ -666,21 +645,30 @@ void SkyboltClient::updateVirtualCockpitTextures(OrbiterModel& model) const
 	}
 }
 
+static sim::Quaternion getOrientationOffset(int objectType)
+{
+	if (objectType == OBJTP_PLANET)
+	{
+		return glm::angleAxis(math::halfPiD(), sim::Vector3(0, 0, 1)) * glm::angleAxis(math::piD(), sim::Vector3(1, 0, 0));
+	}
+	else
+	{
+		return math::dquatIdentity();
+	}
+}
+
 void SkyboltClient::updateEntity(OBJHANDLE object, sim::Entity& entity) const
 {
 	VECTOR3 gpos;
 	oapiGetGlobalPos(object, &gpos);
 
-	VECTOR3 lpos;
-	oapiGlobalToLocal(g_earth, &gpos, &lpos);
-
-	setPosition(entity, toSkyboltPosFromGlobal(gpos));
+	setPosition(entity, toSkyboltVector3GlobalAxes(gpos));
 
 	MATRIX3 mat;
 	oapiGetRotationMatrix(object, &mat);
-	setOrientation(entity, sim::Quaternion(toSkyboltOriFromGlobal(mat)));
+	setOrientation(entity, sim::Quaternion(toSkyboltOriFromGlobal(mat)) * getOrientationOffset(oapiGetObjectType(object)));
 
-	// Update mesh for camera view
+	// Set 3d model visibility appropriately for camera view
 	auto visObject = entity.getFirstComponent<VisObjectsComponent>();
 	if (visObject)
 	{
@@ -717,37 +705,89 @@ SURFHANDLE SkyboltClient::getSurfaceHandleFromTextureId(MESHHANDLE mesh, int id)
 	}
 }
 
-void SkyboltClient::translateEntities()
+static OBJHANDLE getNearestObject(const std::vector<OBJHANDLE>& objects)
 {
-	std::map<OBJHANDLE, skybolt::sim::EntityPtr> currentEntities;
+	OBJHANDLE nearest = nullptr;
+	double nearestDistance;
+	for (const auto& object : objects)
+	{
+		VECTOR3 objectPos;
+		oapiGetGlobalPos(object, &objectPos);
 
+		VECTOR3 cameraPos;
+		oapiCameraGlobalPos(&cameraPos);
+		VECTOR3 diff = cameraPos - objectPos;
+		double distance = dotp(diff, diff);
+
+		if (!nearest || distance < nearestDistance)
+		{
+			nearest = object;
+			nearestDistance = distance;
+		}
+	}
+	return nearest;
+}
+
+static std::vector<OBJHANDLE> getObjectsToRender()
+{
 	std::vector<OBJHANDLE> objects;
+	std::vector<OBJHANDLE> planets;
 	int objectCount = oapiGetObjectCount();
 	for (int i = 0; i < objectCount; ++i)
 	{
-		objects.push_back(oapiGetObjectByIndex(i));
-	}
-
-	if (g_earth)
-	{
-		objectCount = oapiGetBaseCount(g_earth);
-		for (int i = 0; i < objectCount; ++i)
+		OBJHANDLE object = oapiGetObjectByIndex(i);
+		int type = oapiGetObjectType(object);
+		if (type == OBJTP_PLANET)
 		{
-			objects.push_back(oapiGetBaseByIndex(g_earth, i));
+			planets.push_back(object);
+		}
+		else if (type != OBJTP_SURFBASE)
+		{
+			objects.push_back(object);
 		}
 	}
 
+	// Only render the nearest planet and its bases
+	OBJHANDLE planet = getNearestObject(planets);
+	if (planet)
+	{
+		objects.push_back(planet);
+		objectCount = oapiGetBaseCount(planet);
+		for (int i = 0; i < objectCount; ++i)
+		{
+			objects.push_back(oapiGetBaseByIndex(planet, i));
+		}
+	}
+	return objects;
+}
+
+void SkyboltClient::translateEntities()
+{
+
+	std::vector<OBJHANDLE> objects = getObjectsToRender();
+
+	// Remove old entities
+	std::set<OBJHANDLE> objectsSet(objects.begin(), objects.end());
+	for (const auto& [handle, entity] : mEntities)
+	{
+		if (objectsSet.find(handle) == objectsSet.end())
+		{
+			mEngineRoot->simWorld->removeEntity(entity.get());
+		}
+	}
+
+	// Create and update entities
+	std::map<OBJHANDLE, skybolt::sim::EntityPtr> currentEntities;
 	for (const auto& object : objects)
 	{
 		sim::EntityPtr entity;
 		auto it = mEntities.find(object);
 		if (it == mEntities.end())
 		{
-			entity = createEntity(*mEntityFactory, object);
+			entity = mEntityFactory->createEntity(object);
 			if (entity)
 			{
-				if (object != g_earth)
-					updateEntity(object, *entity);
+				updateEntity(object, *entity);
 
 				mEngineRoot->simWorld->addEntity(entity);
 			}
@@ -755,8 +795,7 @@ void SkyboltClient::translateEntities()
 		else
 		{
 			entity = it->second;
-			if (object != g_earth)
-				updateEntity(object, *entity);
+			updateEntity(object, *entity);
 		}
 
 		if (entity)
@@ -765,25 +804,11 @@ void SkyboltClient::translateEntities()
 		}
 	}
 
-	// TODO: remove entities
 	std::swap(currentEntities, mEntities);
 }
 
 void SkyboltClient::clbkRenderScene()
 {
-	//return;
-	/*
-	while (GetRenderWindow())
-	{
-		MSG msg;
-		BOOL result = PeekMessageA(&msg, GetRenderWindow(), 0, 0, PM_REMOVE);
-		if (!result)
-		{
-			break;
-		}
-		RenderWndProc(msg.hwnd, msg.message, msg.wParam, msg.lParam);
-	}
-	*/
 	mEngineRoot->scenario.startJulianDate = oapiGetSimMJD() + 2400000.5;
 	updateCamera(*mSimCamera);
 	translateEntities();
