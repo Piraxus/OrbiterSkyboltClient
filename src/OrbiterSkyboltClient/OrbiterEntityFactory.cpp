@@ -156,6 +156,10 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 				{"miePhaseFunctionG", 0.8},
 				{"useEarthOzone", true}
 			};
+
+			planetJson["clouds"] = {
+				{"map", "Environment/Cloud/cloud_combined_8192.png"}
+			};
 		}
 		else if (name == "Mars")
 		{
