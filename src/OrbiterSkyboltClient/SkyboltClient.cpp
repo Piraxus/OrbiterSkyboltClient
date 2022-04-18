@@ -7,7 +7,6 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-
 #include "OpenGlContext.h"
 
 #define ORBITER_MODULE
@@ -21,6 +20,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "OverlayPanelFactory.h"
 #include "SkyboltClient.h"
 #include "SkyboltParticleStream.h"
+#include "VideoTab.h"
 #include "TileSource/OrbiterElevationTileSource.h"
 #include "TileSource/OrbiterImageTileSource.h"
 
@@ -50,6 +50,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltCommon/Json/ReadJsonFile.h>
 
 #include <osgDB/ReadFile>
+#include <boost/log/sinks/basic_sink_backend.hpp>
+#include <boost/log/sinks/sync_frontend.hpp>
+#include <boost/log/trivial.hpp>
+
+#include <Windows.h>
 
 using namespace skybolt;
 
@@ -78,6 +83,20 @@ DLLCLBK void ExitModule(HINSTANCE hDLL)
 	}
 }
 
+static void forwardBoostLogToOrbiter()
+{
+	namespace sinks = boost::log::sinks;
+
+	struct Sink : public sinks::basic_formatted_sink_backend<char, sinks::concurrent_feeding>
+	{
+		void consume(const boost::log::record_view& rec, const std::string& str)
+		{
+			oapiWriteLog(const_cast<char*>(str.c_str()));
+		}
+	};
+	boost::log::core::get()->add_sink(boost::make_shared<sinks::synchronous_sink<Sink>>());
+}
+
 SkyboltClient::SkyboltClient(HINSTANCE hInstance) :
 	GraphicsClient(hInstance)
 {
@@ -89,11 +108,22 @@ SkyboltClient::~SkyboltClient()
 
 bool SkyboltClient::clbkInitialise()
 {
-	return GraphicsClient::clbkInitialise();
+	bool success = GraphicsClient::clbkInitialise();
 	// Don't create engine here because clbkInitialise is called by DllMain()
 	// where it's illegal to create threads. We will delay creation of the engine
 	// until the first frame needs to be rendered, where threads can be safely created.
 	// See https://stackoverflow.com/questions/1688290/creating-a-thread-in-dllmain
+
+	forwardBoostLogToOrbiter();
+
+	mVideoTab = std::make_unique<VideoTab>(this, ModuleInstance(), OrbiterInstance(), LaunchpadVideoTab());
+
+	return success;
+}
+
+void SkyboltClient::clbkRefreshVideoData()
+{
+	mVideoTab->UpdateConfigData();
 }
 
 static osg::ref_ptr<osg::Texture2D> readAlbedoTexture(const std::string& filename)
@@ -202,12 +232,12 @@ LRESULT SkyboltClient::RenderWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM
 
 INT_PTR SkyboltClient::LaunchpadVideoWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	return false;
+	return mVideoTab ? mVideoTab->WndProc(hWnd, uMsg, wParam, lParam) : FALSE;
 }
 
 bool SkyboltClient::clbkFullscreenMode() const
 {
-	return false;
+	return const_cast<SkyboltClient*>(this)->GetVideoData()->fullscreen;
 }
 
 void SkyboltClient::clbkGetViewportSize(DWORD *width, DWORD *height) const
@@ -274,7 +304,7 @@ SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 		if (w == 0 || h == 0 || w > 4096 || h > 4096)
 		{
 			return nullptr;
-			//throw std::runtime_error("Invalid render target size requested: " + std::to_string(w) + " x " + std::to_string(h));
+			BOOST_LOG_TRIVIAL(error) << "Invalid render target size requested: " << w << " x " << h;
 		}
 
 		osg::ref_ptr<osg::Camera> camera = createSketchpadCamera(texture);
@@ -285,7 +315,7 @@ SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 
 		if (attrib & OAPISURFACE_SKETCHPAD)
 		{
-			auto sketchpad = std::make_shared<OsgSketchpad>(camera, handle);
+			auto sketchpad = std::make_shared<OsgSketchpad>(camera, handle, m_nanoVgContext);
 			mSketchpads[handle] = sketchpad;
 		}
 
@@ -434,31 +464,50 @@ void SkyboltClient::clbkReleaseBrush(Brush* brush) const
 	mBrushes.erase(brush);
 }
 
-static void WriteLog(const std::string& str)
-{
-	oapiWriteLog(const_cast<char*>(str.c_str()));
-}
-
 HWND SkyboltClient::clbkCreateRenderWindow()
 {
-	HWND hWnd = GraphicsClient::clbkCreateRenderWindow();
+	HWND hWnd;
+	char *strWndClass = "Orbiter Render Window";
+	if (GetVideoData()->fullscreen)
+	{
+		int width = GetSystemMetrics(SM_CXSCREEN);
+		int height = GetSystemMetrics(SM_CYSCREEN);
+
+		hWnd = CreateWindow (strWndClass, "",
+			WS_POPUP | WS_VISIBLE,
+			CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, hModule, (LPVOID)this);
+
+		SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+	} else {
+		hWnd = CreateWindow (strWndClass, "",
+			WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+			CW_USEDEFAULT, CW_USEDEFAULT, GetVideoData()->winw, GetVideoData()->winh, 0, 0, hModule, (LPVOID)this);
+	}
 	
 	mGldc = GetDC(hWnd);
 	createOpenGlContext(mGldc);
-	glEnable(GL_DEPTH_CLAMP); // MTODO
 	{
+		auto binDir = std::filesystem::current_path() / "Modules/Plugin/OrbiterSkyboltClient";
+		if (!std::filesystem::exists(binDir))
+		{
+			throw std::runtime_error("Could not find skybolt plugin bin folder: " + binDir.string());
+		}
+
+		_putenv(("SKYBOLT_ASSETS_PATH=" + binDir.string() + "/Assets").c_str()); // TODO: pass path into engine directly without using environment variable
+
 		// Create engine
 		file::Path settingsFilename = file::getAppUserDataDirectory("Skybolt").append("Settings.json");
 
 		nlohmann::json settings;
 		if (std::filesystem::exists(settingsFilename))
 		{
-			WriteLog(std::string("Reading Skybolt settings file '" + settingsFilename.string() + "'"));
+			BOOST_LOG_TRIVIAL(info) << "Reading Skybolt settings file '" << settingsFilename.string() << "'";
 			settings = readJsonFile(settingsFilename.string());
 		}
 		else
 		{
-			WriteLog(std::string("Settings file not found: '" + settingsFilename.string() + "'"));
+			BOOST_LOG_TRIVIAL(info) << "Settings file not found: '" << settingsFilename.string() << "'";
 		}
 
 		try
@@ -475,7 +524,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		}
 		catch (const std::exception& e)
 		{
-			oapiWriteLogV(e.what());
+			BOOST_LOG_TRIVIAL(error) << e.what();
 		}
 
 		auto textureProvider = [this](SURFHANDLE surface) {
@@ -541,6 +590,9 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		mTextureBlitter = new TextureBlitter();
 		osgCamera->addPreDrawCallback(mTextureBlitter);
 	}
+
+	// Create NanoVG context for drawing HUD
+	m_nanoVgContext = CreateNanoVgContext();
 
 	// Create HUD panel overlay
 	{

@@ -56,10 +56,13 @@ struct OsgFont : public oapi::Font
 	float rotationRadians = 0;
 };
 
+struct NVGcontext;
+std::shared_ptr<NVGcontext> CreateNanoVgContext(); // must be called within a valid OpenGL context
+
 class OsgSketchpad : public oapi::Sketchpad
 {
 public:
-	OsgSketchpad(const osg::ref_ptr<osg::Camera>& camera, SURFHANDLE surface);
+	OsgSketchpad(const osg::ref_ptr<osg::Camera>& camera, SURFHANDLE surface, const std::shared_ptr<NVGcontext>& context);
 	~OsgSketchpad();
 
 	void fillBackground(const osg::Vec4f& color);

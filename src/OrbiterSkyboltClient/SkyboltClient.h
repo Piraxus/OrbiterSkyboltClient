@@ -25,9 +25,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <map>
 
 class OrbiterEntityFactory;
+class OrbiterModel;
 class OsgSketchpad;
 class OverlayPanelFactory;
 class SkyboltParticleStream;
+class VideoTab;
 
 namespace oapi {
 
@@ -39,7 +41,7 @@ public:
 
 	bool clbkInitialise () override;
 
-	void clbkRefreshVideoData() override {}
+	void clbkRefreshVideoData() override;
 
 	SURFHANDLE clbkLoadTexture (const char *fname, DWORD flags = 0) override;
 
@@ -184,6 +186,8 @@ private:
 	std::unique_ptr<OverlayPanelFactory> mOverlayPanelFactory;
 	std::unique_ptr<skybolt::vis::EmbeddedWindow> mWindow;
 	skybolt::sim::EntityPtr mSimCamera;
+	std::unique_ptr<VideoTab> mVideoTab;
+	std::shared_ptr<struct NVGcontext> m_nanoVgContext;
 
 	osg::ref_ptr<osg::Group> mPanelGroup;
 	std::map<OBJHANDLE, skybolt::sim::EntityPtr> mEntities;

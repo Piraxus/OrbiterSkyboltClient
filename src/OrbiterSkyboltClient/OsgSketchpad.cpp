@@ -83,15 +83,14 @@ struct TextCommand : SketchpadCommand
 class SketchpadDrawable : public osg::Drawable
 {
 public:
+	SketchpadDrawable(const std::shared_ptr<NVGcontext>& nvgContext) : m_nvgContext(nvgContext)
+	{
+		assert(m_nvgContext);
+	}
+
 	void drawImplementation(osg::RenderInfo& renderInfo) const override
 	{
-		if (!vg)
-		{
-			vg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
-			nvgCreateFont(vg, "Fixed", "C:/Windows/Fonts/cour.ttf");
-			nvgCreateFont(vg, "Sans", "C:/Windows/Fonts/arial.ttf");
-			nvgCreateFont(vg, "Serif", "C:/Windows/Fonts/times.ttf");
-		}
+		auto vg = m_nvgContext.get();
 
 		auto camera = renderInfo.getCurrentCamera();
 		auto viewport = camera->getViewport();
@@ -239,17 +238,26 @@ private:
 	}
 
 private:
-	static NVGcontext* vg;
+	std::shared_ptr<NVGcontext> m_nvgContext;
 	mutable std::vector<std::shared_ptr<SketchpadCommand>> mCommands;
 };
 
-NVGcontext* SketchpadDrawable::vg = nullptr;
+std::shared_ptr<NVGcontext> CreateNanoVgContext()
+{
+	std::shared_ptr<NVGcontext> context(nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES), [] (NVGcontext* vg) {
+		nvgDeleteGL3(vg);
+	});
+	nvgCreateFont(context.get(), "Fixed", "C:/Windows/Fonts/cour.ttf");
+	nvgCreateFont(context.get(), "Sans", "C:/Windows/Fonts/arial.ttf");
+	nvgCreateFont(context.get(), "Serif", "C:/Windows/Fonts/times.ttf");
+	return context;
+}
 
-OsgSketchpad::OsgSketchpad(const osg::ref_ptr<osg::Camera>& camera, SURFHANDLE surface) :
+OsgSketchpad::OsgSketchpad(const osg::ref_ptr<osg::Camera>& camera, SURFHANDLE surface, const std::shared_ptr<NVGcontext>& context) :
 	oapi::Sketchpad(surface),
 	mCamera(camera)
 {
-	mDrawable = new SketchpadDrawable();
+	mDrawable = new SketchpadDrawable(context);
 	mCamera->addChild(mDrawable);
 }
 
@@ -421,6 +429,7 @@ void OsgSketchpad::Line(int x0, int y0, int x1, int y1)
 		c->p1 = osg::Vec2i(x1 - mOrigin.x(), y1 - mOrigin.y());
 		c->pen = *mPen;
 		mDrawable->addCommand(c);
+		MoveTo(x1, y1);
 	}
 }
 
