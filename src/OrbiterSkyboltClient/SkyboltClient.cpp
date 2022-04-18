@@ -497,7 +497,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		_putenv(("SKYBOLT_ASSETS_PATH=" + binDir.string() + "/Assets").c_str()); // TODO: pass path into engine directly without using environment variable
 
 		// Create engine
-		file::Path settingsFilename = file::getAppUserDataDirectory("Skybolt").append("Settings.json");
+		file::Path settingsFilename = file::getAppUserDataDirectory("OrbiterSkybolt").append("Settings.json");
 
 		nlohmann::json settings;
 		if (std::filesystem::exists(settingsFilename))
@@ -507,7 +507,18 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		}
 		else
 		{
-			BOOST_LOG_TRIVIAL(info) << "Settings file not found: '" << settingsFilename.string() << "'";
+			BOOST_LOG_TRIVIAL(info) << "Settings file not found: '" << settingsFilename.string() << "'. Creating defaults.";
+			settings = R"({
+	"tileApiKeys": {
+		"bing": "",
+		"mapbox": ""
+	},
+	"shadows": {
+		"enabled": true,
+		"textureSize": 2048,
+		"cascadeBoundingDistances": [0.02, 2.0,  20.0, 130.0, 7000]
+	}
+})"_json;
 		}
 
 		try
