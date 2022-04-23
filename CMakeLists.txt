@@ -33,8 +33,6 @@ endif()
 
 cmake_policy(SET CMP0020 NEW)
 
-find_package(Skybolt REQUIRED)
-
 include(AddSourceGroup)
 
 add_subdirectory (src/OrbiterSkyboltClient)
