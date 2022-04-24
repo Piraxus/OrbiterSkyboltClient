@@ -157,6 +157,8 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 				{"useEarthOzone", true}
 			};
 
+			planetJson["ocean"] = true;
+
 			planetJson["clouds"] = {
 				{"map", "Environment/Cloud/cloud_combined_8192.png"}
 			};
