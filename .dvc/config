@@ -1,0 +1,8 @@
+[core]
+    analytics = false
+    remote = storage
+['remote "storage"']
+    url = s3://skybolt/SkyboltAssets/dvc
+    endpointurl = https://s3.us-west-000.backblazeb2.com
+    access_key_id = 000dbf124f819b30000000003
+    secret_access_key = "K000ZtTw1o53yO13LHssSiqLgYOAxZ0"

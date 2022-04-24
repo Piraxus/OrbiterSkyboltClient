@@ -20,6 +20,12 @@ conan build --build-folder OrbiterSkyboltClientBuild
 
 The plugin is built to `OrbiterSkyboltClientBuild/bin/Release/OrbiterSkyboltClient.dll`.
 
+## Install
+1. Copy `OrbiterSkyboltClient.dll` to `<Orbiter repo>/Modules/Plugin`
+2. Copy `<Skybolt repo>/Assets/Core` to `<Orbiter repo>/Modules/Plugin/OrbiterSkyboltClient/Assets/Core`
+3. `cd` to the `SkyboltOrbiterClient` repository root and run `dvc pull` to fetch the remote binary assets (images etc required at runtime). If you do not already have DVC installed, first run `pip install dvc[s3]` to install with [pip](https://pypi.org/project/pip)
+4. Copy all folders under `<SkyboltOrbiterClient repo>/Assets` to `<Orbiter repo>/Modules/Plugin/OrbiterSkyboltClient/Assets`
+
 ## Contact
 Skybolt and the Orbiter Skybolt Client created and maintained by Matthew Reid. To submit a bug report, please [raise an issue on the GitHub repository](https://github.com/Piraxus/OrbiterSkyboltClient/issues).
 
