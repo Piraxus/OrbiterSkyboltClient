@@ -16,8 +16,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/OsgStateSetHelpers.h>
 #include <SkyboltVis/OsgGeometryFactory.h>
 #include <SkyboltVis/OsgGeometryHelpers.h>
+#include <osg/BlendEquation>
+#include <osg/BlendFunc>
 #include <osg/Geode>
 #include <osg/Geometry>
+#include <osg/CullFace>
 
 #include <assert.h>
 
@@ -155,7 +158,12 @@ void ModelFactory::populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, co
 		{
 			stateSet.setTextureAttributeAndModes(0, texture);
 			stateSet.addUniform(vis::createUniformSampler2d("albedoSampler", 0));
-			//vis::makeStateSetTransparent(stateSet, vis::TransparencyMode::Classic);
+
+			// All textured models in orbiter are rendered with alpha blending. They should be drawn in creation order, not transparent sorted.
+			// TODO: See if we can improve performance by disabling blending on models that don't need it. Unfortunatly orbiter doesn't
+			// seem to provide this information.
+			stateSet.setAttributeAndModes(new osg::BlendEquation(osg::BlendEquation::FUNC_ADD, osg::BlendEquation::FUNC_ADD));
+			stateSet.setAttributeAndModes(new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA));
 		}
 		else
 		{
