@@ -464,65 +464,76 @@ void SkyboltClient::clbkReleaseBrush(Brush* brush) const
 	mBrushes.erase(brush);
 }
 
+static void appendToPathEnvironmentVariable(const std::string& path)
+{
+	const char* pathEnvVar = getenv("PATH");
+	pathEnvVar ?
+		_putenv(("PATH=" + std::string(pathEnvVar) + ";" + path).c_str())
+		: _putenv(("PATH=" + path).c_str());
+}
+
 HWND SkyboltClient::clbkCreateRenderWindow()
 {
-	HWND hWnd;
-	char *strWndClass = "Orbiter Render Window";
-	if (GetVideoData()->fullscreen)
+	try
 	{
-		int width = GetSystemMetrics(SM_CXSCREEN);
-		int height = GetSystemMetrics(SM_CYSCREEN);
+		HWND hWnd;
+		char *strWndClass = "Orbiter Render Window";
+		if (GetVideoData()->fullscreen)
+		{
+			int width = GetSystemMetrics(SM_CXSCREEN);
+			int height = GetSystemMetrics(SM_CYSCREEN);
 
-		hWnd = CreateWindow (strWndClass, "",
-			WS_POPUP | WS_VISIBLE,
-			CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, hModule, (LPVOID)this);
+			hWnd = CreateWindow (strWndClass, "",
+				WS_POPUP | WS_VISIBLE,
+				CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, hModule, (LPVOID)this);
 
-		SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+			SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
-	} else {
-		hWnd = CreateWindow (strWndClass, "",
-			WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
-			CW_USEDEFAULT, CW_USEDEFAULT, GetVideoData()->winw, GetVideoData()->winh, 0, 0, hModule, (LPVOID)this);
-	}
+		} else {
+			hWnd = CreateWindow (strWndClass, "",
+				WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+				CW_USEDEFAULT, CW_USEDEFAULT, GetVideoData()->winw, GetVideoData()->winh, 0, 0, hModule, (LPVOID)this);
+		}
 	
-	mGldc = GetDC(hWnd);
-	createOpenGlContext(mGldc);
-	{
-		auto binDir = std::filesystem::current_path() / "Modules/Plugin/OrbiterSkyboltClient";
-		if (!std::filesystem::exists(binDir))
+		mGldc = GetDC(hWnd);
+		createOpenGlContext(mGldc);
 		{
-			throw std::runtime_error("Could not find skybolt plugin bin folder: " + binDir.string());
+			auto binDir = std::filesystem::current_path() / "Modules/Plugin/OrbiterSkyboltClient";
+			if (!std::filesystem::exists(binDir))
+			{
+				throw std::runtime_error("Could not find skybolt plugin folder: " + binDir.string());
+			}
+
+#ifndef OSG_LIBRARY_STATIC
+			appendToPathEnvironmentVariable(binDir.string()); // allow shared library build to find OSG plugin DLLS
+#endif
+			_putenv(("SKYBOLT_ASSETS_PATH=" + binDir.string() + "/Assets").c_str()); // TODO: pass path into engine directly without using environment variable
+
+			// Create engine
+			file::Path settingsFilename = file::getAppUserDataDirectory("OrbiterSkybolt").append("Settings.json");
+
+			nlohmann::json settings;
+			if (std::filesystem::exists(settingsFilename))
+			{
+				BOOST_LOG_TRIVIAL(info) << "Reading Skybolt settings file '" << settingsFilename.string() << "'";
+				settings = readJsonFile(settingsFilename.string());
+			}
+			else
+			{
+				BOOST_LOG_TRIVIAL(info) << "Settings file not found: '" << settingsFilename.string() << "'. Creating defaults.";
+				settings = R"({
+		"tileApiKeys": {
+			"bing": "",
+			"mapbox": ""
+		},
+		"shadows": {
+			"enabled": true,
+			"textureSize": 2048,
+			"cascadeBoundingDistances": [0.02, 2.0,  20.0, 130.0, 7000]
 		}
+	})"_json;
+			}
 
-		_putenv(("SKYBOLT_ASSETS_PATH=" + binDir.string() + "/Assets").c_str()); // TODO: pass path into engine directly without using environment variable
-
-		// Create engine
-		file::Path settingsFilename = file::getAppUserDataDirectory("OrbiterSkybolt").append("Settings.json");
-
-		nlohmann::json settings;
-		if (std::filesystem::exists(settingsFilename))
-		{
-			BOOST_LOG_TRIVIAL(info) << "Reading Skybolt settings file '" << settingsFilename.string() << "'";
-			settings = readJsonFile(settingsFilename.string());
-		}
-		else
-		{
-			BOOST_LOG_TRIVIAL(info) << "Settings file not found: '" << settingsFilename.string() << "'. Creating defaults.";
-			settings = R"({
-	"tileApiKeys": {
-		"bing": "",
-		"mapbox": ""
-	},
-	"shadows": {
-		"enabled": true,
-		"textureSize": 2048,
-		"cascadeBoundingDistances": [0.02, 2.0,  20.0, 130.0, 7000]
-	}
-})"_json;
-		}
-
-		try
-		{
 			mEngineRoot = EngineRootFactory::create({}, settings);
 
 			mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterElevation", [](const nlohmann::json& json) {
@@ -532,93 +543,94 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 			mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterImage", [](const nlohmann::json& json) {
 				return std::make_shared<OrbiterImageTileSource>(json.at("url"));
 			});
-		}
-		catch (const std::exception& e)
-		{
-			BOOST_LOG_TRIVIAL(error) << e.what();
-		}
 
-		auto textureProvider = [this](SURFHANDLE surface) {
-			return findOptional(mTextures, surface).get_value_or(nullptr);
-		};
-
-		std::shared_ptr<ModelFactory> modelFactory;
-		{
-			ModelFactoryConfig config;
-			config.surfaceHandleFromTextureIdProvider = [this](MESHHANDLE mesh, int textureId) {
-				return getSurfaceHandleFromTextureId(mesh, textureId);
+			auto textureProvider = [this](SURFHANDLE surface) {
+				return findOptional(mTextures, surface).get_value_or(nullptr);
 			};
-			config.textureProvider = textureProvider;
-			config.program = mEngineRoot->programs.getRequiredProgram("model");
 
-			modelFactory = std::make_shared<ModelFactory>(config);
+			std::shared_ptr<ModelFactory> modelFactory;
+			{
+				ModelFactoryConfig config;
+				config.surfaceHandleFromTextureIdProvider = [this](MESHHANDLE mesh, int textureId) {
+					return getSurfaceHandleFromTextureId(mesh, textureId);
+				};
+				config.textureProvider = textureProvider;
+				config.program = mEngineRoot->programs.getRequiredProgram("model");
+
+				modelFactory = std::make_shared<ModelFactory>(config);
+			}
+
+			{
+				OrbiterEntityFactoryConfig config;
+				config.entityFactory = mEngineRoot->entityFactory.get();
+				config.scene = mEngineRoot->scene;
+				config.modelFactory = modelFactory;
+				config.shaderPrograms = &mEngineRoot->programs;
+
+				mEntityFactory = std::make_unique<OrbiterEntityFactory>(config);
+			}
+
+			mOverlayPanelFactory = std::make_unique<OverlayPanelFactory>(
+				[this] { return osg::Vec2i(mWindow->getWidth(), mWindow->getHeight()); },
+				textureProvider,
+				[this](int mfdId) { return GetMFDSurface(mfdId); }
+			);
+
+			// Create camera
+			mSimCamera = mEngineRoot->entityFactory->createEntity("Camera");
+			auto cameraComponent = mSimCamera->getFirstComponentRequired<sim::CameraComponent>();
+			cameraComponent->getState().fovY = 1.0;
+			cameraComponent->getState().nearClipDistance = 0.2f;
+			cameraComponent->getState().farClipDistance = 5e7;
+
+			auto cameraController = static_cast<sim::CameraControllerSelector*>(mSimCamera->getFirstComponentRequired<sim::CameraControllerComponent>()->cameraController.get());
+			cameraController->selectController("Null");
+
+			mEngineRoot->simWorld->addEntity(mSimCamera);
 		}
 
+		mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("Stars"));
+
+		RECT rect;
+		GetClientRect(hWnd, &rect);
+
+		mWindow = std::make_unique<vis::EmbeddedWindow>(rect.right - rect.left, rect.bottom - rect.top);
+
+		// Attach camera to window
+		osg::ref_ptr<vis::RenderTarget> viewport = createAndAddViewportToWindow(*mWindow, mEngineRoot->programs.getRequiredProgram("compositeFinal"));
+		viewport->setScene(std::make_shared<vis::RenderTargetSceneAdapter>(mEngineRoot->scene));
+		viewport->setCamera(getVisCamera(*mSimCamera));
+
+		// Setup blitter
 		{
-			OrbiterEntityFactoryConfig config;
-			config.entityFactory = mEngineRoot->entityFactory.get();
-			config.scene = mEngineRoot->scene;
-			config.modelFactory = modelFactory;
-			config.shaderPrograms = &mEngineRoot->programs;
-
-			mEntityFactory = std::make_unique<OrbiterEntityFactory>(config);
+			osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().front().target->getOsgCamera();
+			mTextureBlitter = new TextureBlitter();
+			osgCamera->addPreDrawCallback(mTextureBlitter);
 		}
 
-		mOverlayPanelFactory = std::make_unique<OverlayPanelFactory>(
-			[this] { return osg::Vec2i(mWindow->getWidth(), mWindow->getHeight()); },
-			textureProvider,
-			[this](int mfdId) { return GetMFDSurface(mfdId); }
-		);
+		// Create NanoVG context for drawing HUD
+		m_nanoVgContext = CreateNanoVgContext();
 
-		// Create camera
-		mSimCamera = mEngineRoot->entityFactory->createEntity("Camera");
-		auto cameraComponent = mSimCamera->getFirstComponentRequired<sim::CameraComponent>();
-		cameraComponent->getState().fovY = 1.0;
-		cameraComponent->getState().nearClipDistance = 0.2f;
-		cameraComponent->getState().farClipDistance = 5e7;
+		// Create HUD panel overlay
+		{
+			mPanelGroup = new osg::Group();
+			osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().back().target->getOsgCamera();
+			osgCamera->addChild(mPanelGroup);
 
-		auto cameraController = static_cast<sim::CameraControllerSelector*>(mSimCamera->getFirstComponentRequired<sim::CameraControllerComponent>()->cameraController.get());
-		cameraController->selectController("Null");
+			auto program = mEngineRoot->programs.getRequiredProgram("hudGeometry");
+			auto stateSet = mPanelGroup->getOrCreateStateSet();
+			stateSet->setAttribute(program);
+			stateSet->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+			vis::makeStateSetTransparent(*stateSet, vis::TransparencyMode::Classic);
+		}
 
-		mEngineRoot->simWorld->addEntity(mSimCamera);
+		return hWnd;
 	}
-
-	mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("Stars"));
-
-	RECT rect;
-	GetClientRect(hWnd, &rect);
-
-	mWindow = std::make_unique<vis::EmbeddedWindow>(rect.right - rect.left, rect.bottom - rect.top);
-
-	// Attach camera to window
-	osg::ref_ptr<vis::RenderTarget> viewport = createAndAddViewportToWindow(*mWindow, mEngineRoot->programs.getRequiredProgram("compositeFinal"));
-	viewport->setScene(std::make_shared<vis::RenderTargetSceneAdapter>(mEngineRoot->scene));
-	viewport->setCamera(getVisCamera(*mSimCamera));
-
-	// Setup blitter
+	catch (const std::exception& e)
 	{
-		osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().front().target->getOsgCamera();
-		mTextureBlitter = new TextureBlitter();
-		osgCamera->addPreDrawCallback(mTextureBlitter);
+		BOOST_LOG_TRIVIAL(error) << e.what();
+		return nullptr;
 	}
-
-	// Create NanoVG context for drawing HUD
-	m_nanoVgContext = CreateNanoVgContext();
-
-	// Create HUD panel overlay
-	{
-		mPanelGroup = new osg::Group();
-		osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().back().target->getOsgCamera();
-		osgCamera->addChild(mPanelGroup);
-
-		auto program = mEngineRoot->programs.getRequiredProgram("hudGeometry");
-		auto stateSet = mPanelGroup->getOrCreateStateSet();
-		stateSet->setAttribute(program);
-		stateSet->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
-		vis::makeStateSetTransparent(*stateSet, vis::TransparencyMode::Classic);
-	}
-
-	return hWnd;
 }
 
 void SkyboltClient::clbkDestroyRenderWindow(bool fastclose)
