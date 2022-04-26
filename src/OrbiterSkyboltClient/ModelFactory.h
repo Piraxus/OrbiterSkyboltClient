@@ -35,7 +35,7 @@ class ModelFactory
 {
 public:
 	ModelFactory(const ModelFactoryConfig& config);
-	std::unique_ptr<OrbiterModel> createModel(MESHHANDLE hMesh, OBJHANDLE handle, int meshId, int meshVisibilityMode) const;
+	std::unique_ptr<OrbiterModel> createModel(MESHHANDLE hMesh, OBJHANDLE handle, int meshId, int meshVisibilityCategoryFlags) const;
 
 	static osg::ref_ptr<osg::Geometry> createGeometry(const MESHGROUP& data);
 

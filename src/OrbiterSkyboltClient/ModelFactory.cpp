@@ -34,14 +34,14 @@ ModelFactory::ModelFactory(const ModelFactoryConfig& config) :
 {
 }
 
-std::unique_ptr<OrbiterModel> ModelFactory::createModel(MESHHANDLE hMesh, OBJHANDLE handle, int meshId, int meshVisibilityMode) const
+std::unique_ptr<OrbiterModel> ModelFactory::createModel(MESHHANDLE hMesh, OBJHANDLE handle, int meshId, int meshVisibilityCategoryFlags) const
 {
 	auto result = getOrCreateMesh(hMesh);
 	OrbiterModelConfig config;
 	config.node = result.node;
 	config.owningObject = handle;
 	config.meshId = meshId;
-	config.meshVisibilityMode = meshVisibilityMode;
+	config.meshVisibilityCategoryFlags = meshVisibilityCategoryFlags;
 	config.meshGroupToGeometryIndex = result.meshGroupToGeometryIndex;
 	return std::make_unique<OrbiterModel>(config);
 }
@@ -184,6 +184,5 @@ void ModelFactory::populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, co
 	{
 		// MFD texture will be set later
 		stateSet.addUniform(vis::createUniformSampler2d("albedoSampler", 0));
-		vis::makeStateSetTransparent(stateSet, vis::TransparencyMode::Classic);
 	}
 }

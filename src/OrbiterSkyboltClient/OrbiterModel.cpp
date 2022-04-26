@@ -21,7 +21,7 @@ OrbiterModel::OrbiterModel(const OrbiterModelConfig& config) :
 	Model(config),
 	mOwningObject(config.owningObject),
 	mMeshId(config.meshId),
-	mMeshVisibilityMode(config.meshVisibilityMode),
+	mMeshVisibilityCategoryFlags(config.meshVisibilityCategoryFlags),
 	mMeshGroupToGeometryIndex(config.meshGroupToGeometryIndex)
 {
 }

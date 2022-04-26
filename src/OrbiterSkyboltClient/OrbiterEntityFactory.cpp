@@ -85,13 +85,13 @@ sim::EntityPtr OrbiterEntityFactory::createVessel(OBJHANDLE object, VESSEL* vess
 	{
 		if (auto hMesh = vessel->GetMeshTemplate(i); hMesh)
 		{
-			int vismode = (int)vessel->GetMeshVisibilityMode(i);
-			if (vismode != MESHVIS_NEVER)
+			int visFlags = (int)vessel->GetMeshVisibilityMode(i);
+			if (visFlags != MESHVIS_NEVER)
 			{
 				VECTOR3 offset;
 				vessel->GetMeshOffset(i, offset);
 
-				vis::ModelPtr model = mModelFactory->createModel(hMesh, object, i, vismode);
+				vis::ModelPtr model = mModelFactory->createModel(hMesh, object, i, visFlags);
 				visObjectsComponent->addObject(model);
 
 				SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,

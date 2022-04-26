@@ -44,6 +44,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltSim/Spatial/Geocentric.h>
 #include <SkyboltSim/System/SimStepper.h>
 #include <SkyboltSim/System/System.h>
+#include <SkyboltVis/VisibilityCategory.h>
 #include <SkyboltVis/Window/EmbeddedWindow.h>
 #include <SkyboltCommon/MapUtility.h>
 #include <SkyboltCommon/File/OsDirectories.h>
@@ -653,18 +654,26 @@ static sim::Quaternion toSkyboltOriFromGlobal(const MATRIX3& m)
 	return sim::Quaternion(toSkyboltMatrix3(m)) * glm::angleAxis(math::halfPiD(), sim::Vector3(0, 0, 1)) * glm::angleAxis(math::piD(), sim::Vector3(1, 0, 0));
 }
 
-static int isVisible(const OrbiterModel& model)
+static int getMainCameraVisibilityMask(const OrbiterModel& model)
 {
-	int vismode = model.getMeshVisibilityMode();
-
 	if (oapiCameraInternal() && model.getOwningObject() == oapiGetFocusObject())
 	{
-		return (oapiCockpitMode() == COCKPIT_VIRTUAL) ? (vismode & MESHVIS_VC) : (vismode & MESHVIS_COCKPIT);
+		return oapiCockpitMode() ? MESHVIS_VC : MESHVIS_COCKPIT;
 	}
 	else
 	{
-		return vismode & MESHVIS_EXTERNAL;
+		return MESHVIS_EXTERNAL;
 	}
+}
+
+static int isVisibleInMainCamera(const OrbiterModel& model)
+{
+	return model.getMeshVisibilityCategoryFlags() & getMainCameraVisibilityMask(model);
+}
+
+static int isVisibleInShadowCamera(const OrbiterModel& model)
+{
+	return model.getMeshVisibilityCategoryFlags() & MESHVIS_EXTERNAL;
 }
 
 static void updateCamera(sim::Entity& camera)
@@ -753,7 +762,16 @@ void SkyboltClient::updateEntity(OBJHANDLE object, sim::Entity& entity) const
 			auto model = dynamic_cast<OrbiterModel*>(object.get());
 			if (model)
 			{
-				model->setVisible(isVisible(*model));
+				// Set model visible if it should be visible to either main or shadow cameras
+				bool visMainCamera = isVisibleInMainCamera(*model);
+				bool visShadowCamera = isVisibleInShadowCamera(*model);
+				model->setVisible(visMainCamera || visShadowCamera);
+
+				// Set model visibility flags appropriatly for main/shadow camera visibility
+				int mask = 0;
+				if (visMainCamera) mask |= vis::VisibilityCategory::defaultCategories;
+				if (visShadowCamera) mask |= vis::VisibilityCategory::shadowCaster;
+				model->setVisibilityCategoryMask(mask);
 
 				if (isVirtualCockpit)
 				{

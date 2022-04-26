@@ -20,7 +20,7 @@ struct OrbiterModelConfig : public skybolt::vis::ModelConfig
 {
 	OBJHANDLE owningObject;
 	int meshId;
-	int meshVisibilityMode;
+	int meshVisibilityCategoryFlags;
 	std::vector<int> meshGroupToGeometryIndex; //!< Maps orbiter mesh group ID to osg geometry ID. Index is -1 if the mesh group has no geometry
 };
 
@@ -34,7 +34,9 @@ public:
 
 	OBJHANDLE getOwningObject() const { return mOwningObject; }
 	int getMeshId() const { return mMeshId; }
-	int getMeshVisibilityMode() const { return mMeshVisibilityMode; }
+
+	//! Gets the orbiter visibility category flags for the mesh. Values can be MESHVIS_NEVER, MESHVIS_EXTERNAL etc.
+	int getMeshVisibilityCategoryFlags() const { return mMeshVisibilityCategoryFlags; }
 
 private:
 	osg::Drawable* getDrawable(int groupId) const; //!< Returns null if drawable not found for groupId
@@ -42,7 +44,7 @@ private:
 private:
 	OBJHANDLE mOwningObject;
 	int mMeshId;
-	int mMeshVisibilityMode;
+	int mMeshVisibilityCategoryFlags;
 	std::vector<int> mMeshGroupToGeometryIndex;
 	std::set<int> mMfdGroupIds;
 };
