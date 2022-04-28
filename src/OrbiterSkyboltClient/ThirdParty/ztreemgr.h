@@ -96,8 +96,8 @@ public:
 	~ZTreeMgr();
 	const TreeTOC &TOC() const { return toc; }
 
-	DWORD Idx(int lvl, int ilat, int ilng);
 	// return the array index of an arbitrary tile ((DWORD)-1: not present)
+	DWORD Idx(int lvl, int ilat, int ilng) const;
 
 	DWORD ReadData(DWORD idx, BYTE **outp);
 

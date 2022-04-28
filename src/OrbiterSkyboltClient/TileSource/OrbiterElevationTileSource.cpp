@@ -18,16 +18,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 using namespace skybolt;
 
-OrbiterElevationTileSource::OrbiterElevationTileSource(const std::string& directory)
+OrbiterElevationTileSource::OrbiterElevationTileSource(const std::string& directory) :
+	OrbiterTileSource(std::make_unique<ZTreeMgr>(directory.c_str(), ZTreeMgr::LAYER_ELEV))
 {
-	mTreeMgr = std::make_unique<ZTreeMgr>(directory.c_str(), ZTreeMgr::LAYER_ELEV);
-	if (mTreeMgr->TOC().size() == 0) // If load failed
-	{
-		mTreeMgr.reset();
-	}
 }
-
-OrbiterElevationTileSource::~OrbiterElevationTileSource() = default;
 
 #pragma pack(push,1)
 //! From Orbiter developer documentation 'PlanetTextures.odt'
@@ -48,30 +42,14 @@ struct ELEVFILEHEADER { // file header for patch elevation data file
 };
 #pragma pack(pop)
 
-osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const skybolt::QuadTreeTileKey& key, std::function<bool()> cancelSupplier) const
+osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const std::uint8_t* buffer, std::size_t sizeBytes) const
 {
-	if (!mTreeMgr)
+	if (sizeBytes < sizeof(ELEVFILEHEADER))
 	{
 		return nullptr;
 	}
 
-	BYTE *buf;
-
-	// ReadData is not thread-safe, requiring threads to have exclusive access
-	std::scoped_lock<std::mutex> lock(mTreeMgrMutex);
-	DWORD ndata = mTreeMgr->ReadData(key.level + 4, key.y, key.x, &buf);
-
-	if (ndata < sizeof(ELEVFILEHEADER))
-	{
-		return nullptr;
-	}
-
-	BOOST_SCOPE_EXIT(&mTreeMgr, &buf)
-	{
-		mTreeMgr->ReleaseData(buf);
-	} BOOST_SCOPE_EXIT_END
-
-	const ELEVFILEHEADER& header = reinterpret_cast<const ELEVFILEHEADER&>(*buf);
+	const ELEVFILEHEADER& header = reinterpret_cast<const ELEVFILEHEADER&>(*buffer);
 
 	osg::ref_ptr<osg::Image> image = new osg::Image();
 	image->allocateImage(256, 256, 1, GL_LUMINANCE, GL_UNSIGNED_SHORT);
@@ -87,12 +65,12 @@ osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const skybolt::
 
 	if (header.dtype == 8) // uint8
 	{
-		if ((int)ndata > header.hdrsize + expectedWidth * expectedHeight)
+		if ((int)sizeBytes > header.hdrsize + expectedWidth * expectedHeight)
 		{
 			return nullptr;
 		}
 
-		std::uint8_t* source = buf + header.hdrsize;
+		const std::uint8_t* source = buffer + header.hdrsize;
 		for (int y = 1; y < 257; ++y)
 		{
 			for (int x = 1; x < 257; ++x)
@@ -103,12 +81,12 @@ osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const skybolt::
 	}
 	else if (header.dtype == -16) // int16
 	{
-		if ((int)ndata > header.hdrsize + expectedWidth * expectedHeight * sizeof(std::int16_t))
+		if ((int)sizeBytes > header.hdrsize + expectedWidth * expectedHeight * sizeof(std::int16_t))
 		{
 			return nullptr;
 		}
 
-		std::int16_t* source = reinterpret_cast<std::int16_t*>(buf + header.hdrsize);
+		const std::int16_t* source = reinterpret_cast<const std::int16_t*>(buffer + header.hdrsize);
 		for (int y = 1; y < 257; ++y)
 		{
 			for (int x = 1; x < 257; ++x)

@@ -163,7 +163,7 @@ bool ZTreeMgr::OpenArchive()
 
 // -----------------------------------------------------------------------
 
-DWORD ZTreeMgr::Idx(int lvl, int ilat, int ilng)
+DWORD ZTreeMgr::Idx(int lvl, int ilat, int ilng) const
 {
 	if (lvl <= 4) {
 		return (lvl == 1 ? rootPos1 : lvl == 2 ? rootPos2 : lvl == 3 ? rootPos3 : rootPos4[ilng]);

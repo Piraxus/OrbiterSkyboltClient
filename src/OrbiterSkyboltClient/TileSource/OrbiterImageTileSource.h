@@ -11,17 +11,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
-#include <SkyboltVis/Renderable/Planet/Tile/TileSource/TileSource.h>
+#include "OrbiterTileSource.h"
 
-class OrbiterImageTileSource : public skybolt::vis::TileSource
+class OrbiterImageTileSource : public OrbiterTileSource
 {
 public:
 	OrbiterImageTileSource(const std::string& directory);
-	~OrbiterImageTileSource() override;
+	~OrbiterImageTileSource() override = default;
 
-	osg::ref_ptr<osg::Image> createImage(const skybolt::QuadTreeTileKey& key, std::function<bool()> cancelSupplier) const;
-
-private:
-	std::unique_ptr<class ZTreeMgr> mTreeMgr;
-	mutable std::mutex mTreeMgrMutex;
+protected:
+	osg::ref_ptr<osg::Image> createImage(const std::uint8_t* buffer, std::size_t sizeBytes) const;
 };

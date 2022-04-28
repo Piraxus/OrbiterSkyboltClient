@@ -17,7 +17,7 @@ class SkyboltConan(ConanFile):
 
     requires = [
 		"glew/2.2.0@_/_",
-		"skybolt/1.2.1@_/_"
+		"skybolt/1.3.0@_/_"
 	]
 
     def build(self):

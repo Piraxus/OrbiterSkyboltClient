@@ -16,42 +16,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <osgDB/Registry>
 #include <boost/scope_exit.hpp>
 
-OrbiterImageTileSource::OrbiterImageTileSource(const std::string& directory)
+OrbiterImageTileSource::OrbiterImageTileSource(const std::string& directory) :
+	OrbiterTileSource(std::make_unique<ZTreeMgr>(directory.c_str(), ZTreeMgr::LAYER_SURF))
 {
-	mTreeMgr = std::make_unique<ZTreeMgr>(directory.c_str(), ZTreeMgr::LAYER_SURF);
-
-	if (mTreeMgr->TOC().size() == 0) // If load failed
-	{
-		mTreeMgr.reset();
-	}
 }
 
-OrbiterImageTileSource::~OrbiterImageTileSource() = default;
-
-osg::ref_ptr<osg::Image> OrbiterImageTileSource::createImage(const skybolt::QuadTreeTileKey& key, std::function<bool()> cancelSupplier) const
+osg::ref_ptr<osg::Image> OrbiterImageTileSource::createImage(const std::uint8_t* buffer, std::size_t sizeBytes) const
 {
-	if (!mTreeMgr)
-	{
-		return nullptr;
-	}
-
-	// ReadData is not thread-safe, requiring threads to have exclusive access
-	std::scoped_lock<std::mutex> lock(mTreeMgrMutex);
-
-	BYTE *buf;
-	DWORD ndata = mTreeMgr->ReadData(key.level + 4, key.y, key.x, &buf);
-
-	if (ndata == 0)
-	{
-		return nullptr;
-	}
-
-	BOOST_SCOPE_EXIT(&mTreeMgr, &buf)
-	{
-		mTreeMgr->ReleaseData(buf);
-	} BOOST_SCOPE_EXIT_END
-
-	MemoryStreamBuf membuf(reinterpret_cast<char*>(buf), ndata);
+	MemoryStreamBuf membuf((char*)(buffer), sizeBytes);
 	std::istream istream(&membuf);
 
 	osgDB::ReaderWriter *rw = osgDB::Registry::instance()->getReaderWriterForExtension("dds");

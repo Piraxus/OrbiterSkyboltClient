@@ -11,14 +11,30 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
-#include "OrbiterTileSource.h"
+#include <SkyboltVis/Renderable/Planet/Tile/TileSource/TileSource.h>
 
-class OrbiterElevationTileSource : public OrbiterTileSource
+class ZTreeMgr;
+
+class OrbiterTileSource : public skybolt::vis::TileSource
 {
 public:
-	OrbiterElevationTileSource(const std::string& directory);
-	~OrbiterElevationTileSource() override = default;
+	OrbiterTileSource(std::unique_ptr<ZTreeMgr> treeMgr);
+	~OrbiterTileSource() override;
+
+	//!@ThreadSafe
+	osg::ref_ptr<osg::Image> createImage(const skybolt::QuadTreeTileKey& key, std::function<bool()> cancelSupplier) const;
+
+	//!@ThreadSafe
+	bool hasAnyChildren(const skybolt::QuadTreeTileKey& key) const override;
+
+	//! @returns the highest key with source data in the given key's ancestral hierarchy
+	//!@ThreadSafe
+	virtual std::optional<skybolt::QuadTreeTileKey> getHighestAvailableLevel(const skybolt::QuadTreeTileKey& key) const  override;
 
 protected:
-	osg::ref_ptr<osg::Image> createImage(const std::uint8_t* buffer, std::size_t sizeBytes) const;
+	virtual osg::ref_ptr<osg::Image> createImage(const std::uint8_t* buffer, std::size_t sizeBytes)const = 0;
+
+private:
+	std::unique_ptr<ZTreeMgr> mTreeMgr;
+	mutable std::mutex mTreeMgrMutex;
 };
