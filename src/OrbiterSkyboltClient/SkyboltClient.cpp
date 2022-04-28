@@ -658,7 +658,7 @@ static int getMainCameraVisibilityMask(const OrbiterModel& model)
 {
 	if (oapiCameraInternal() && model.getOwningObject() == oapiGetFocusObject())
 	{
-		return oapiCockpitMode() ? MESHVIS_VC : MESHVIS_COCKPIT;
+		return (oapiCockpitMode() == COCKPIT_VIRTUAL) ? MESHVIS_VC : MESHVIS_COCKPIT;
 	}
 	else
 	{
