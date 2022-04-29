@@ -15,7 +15,7 @@ conan export Skybolt
 
 git clone https://github.com/Piraxus/OrbiterSkyboltClient
 conan install OrbiterSkyboltClient --install-folder OrbiterSkyboltClientBuild --build=missing
-conan build --build-folder OrbiterSkyboltClientBuild
+conan build OrbiterSkyboltClient --build-folder OrbiterSkyboltClientBuild
 ```
 
 The plugin is built to `OrbiterSkyboltClientBuild/bin/Release/OrbiterSkyboltClient.dll`.
