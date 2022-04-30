@@ -171,12 +171,14 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 					{"wavelengthsNm", {440, 510, 680}},
 				}},
 				{"rayleighScaleHeight", 11000.0},
-				{"mieScaleHeight", 1200.0},
+				{"mieScaleHeight", 1600.0},
 				{"mieAngstromAlpha", 0.0},
 				{"mieAngstromBeta", 5.328e-3},
 				{"mieSingleScatteringAlbedo", 0.9},
 				{"miePhaseFunctionG", 0.8},
-				{"useEarthOzone", true}
+				{"useEarthOzone", false},
+				{"bottomRadius", radius - 4000},
+				{"topRadius", radius + 75000},
 			};
 		}
 	}
