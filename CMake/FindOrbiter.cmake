@@ -6,23 +6,23 @@
 
 FIND_PATH(Orbiter_INCLUDE_DIR GraphicsAPI.h
   PATHS
-	$ENV{ORBITER_SOURCE_DIR}
+	$ENV{ORBITER_SDK_DIR}
   PATH_SUFFIXES
 	include
 )
 
 FIND_LIBRARY(Orbiter_LIBRARY_R
-  NAMES Orbiter_server
+  NAMES Orbiter
   PATHS
-	$ENV{ORBITER_LIB_DIR}
+	$ENV{ORBITER_SDK_DIR}
   PATH_SUFFIXES
 	lib
 )
 
 FIND_LIBRARY(Orbiter_LIBRARY_D
-  NAMES Orbiter_serverd Orbiter_server
+  NAMES Orbiterd Orbiter
   PATHS
-	$ENV{ORBITER_LIB_DIR}
+	$ENV{ORBITER_SDK_DIR}
   PATH_SUFFIXES
 	lib
 )
@@ -30,7 +30,7 @@ FIND_LIBRARY(Orbiter_LIBRARY_D
 FIND_LIBRARY(Orbiter_SDK_LIBRARY_R
   NAMES Orbitersdk
   PATHS
-	$ENV{ORBITER_LIB_DIR}
+	$ENV{ORBITER_SDK_DIR}
   PATH_SUFFIXES
 	lib
 )
@@ -38,13 +38,17 @@ FIND_LIBRARY(Orbiter_SDK_LIBRARY_R
 FIND_LIBRARY(Orbiter_SDK_LIBRARY_D
   NAMES Orbitersdkd Orbitersdk
   PATHS
-	$ENV{ORBITER_LIB_DIR}
+	$ENV{ORBITER_SDK_DIR}
   PATH_SUFFIXES
 	lib
 )
 
-SET(Orbiter_LIBRARIES optimized ${Orbiter_LIBRARY_R} ${Orbiter_SDK_LIBRARY_R} debug ${Orbiter_LIBRARY_D} ${Orbiter_SDK_LIBRARY_D})
+SET(Orbiter_LIBRARIES
+	optimized ${Orbiter_LIBRARY_R}
+	debug ${Orbiter_LIBRARY_D}
+	optimized ${Orbiter_SDK_LIBRARY_R}
+	debug ${Orbiter_SDK_LIBRARY_D}
+)
 
-IF(Orbiter_LIBRARY AND Orbiter_INCLUDE_DIR)
-  SET(Orbiter_FOUND "YES")
-ENDIF()
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Orbiter DEFAULT_MSG Orbiter_LIBRARIES Orbiter_INCLUDE_DIR)
