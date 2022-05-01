@@ -26,6 +26,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include <SkyboltEngine/EngineRoot.h>
 #include <SkyboltEngine/EngineRootFactory.h>
+#include <SkyboltEngine/EngineSettings.h>
 #include <SkyboltEngine/SimVisBinding/CameraSimVisBinding.h>
 #include <SkyboltEngine/VisObjectsComponent.h>
 #include <SkyboltSim/Entity.h>
@@ -49,6 +50,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltCommon/MapUtility.h>
 #include <SkyboltCommon/File/OsDirectories.h>
 #include <SkyboltCommon/Json/ReadJsonFile.h>
+#include <SkyboltCommon/Json/WriteJsonFile.h>
 
 #include <osgDB/ReadFile>
 #include <boost/log/sinks/basic_sink_backend.hpp>
@@ -473,10 +475,44 @@ static void appendToPathEnvironmentVariable(const std::string& path)
 		: _putenv(("PATH=" + path).c_str());
 }
 
+static nlohmann::json readSettings(const std::filesystem::path& filename)
+{
+	nlohmann::json settings;
+	if (std::filesystem::exists(filename))
+	{
+		BOOST_LOG_TRIVIAL(info) << "Reading settings file '" << filename.string() << "'";
+		settings = readJsonFile(filename.string());
+	}
+	else
+	{
+		 // Settings file does not exist. Create it.
+		settings = R"({
+"tileApiKeys": {
+	"bing": "",
+	"mapbox": ""
+},
+"display": {
+	"multiSampleCount": 4
+},
+"shadows": {
+	"enabled": true,
+	"textureSize": 2048,
+	"cascadeBoundingDistances": [0.02, 2.0,  20.0, 130.0, 7000]
+}
+})"_json;
+
+		BOOST_LOG_TRIVIAL(info) << "Creating settings file with defaults: " << filename.string();
+		std::filesystem::create_directories(filename.parent_path());
+		writeJsonFile(settings, filename.string());
+	}
+	return settings;
+}
+
 HWND SkyboltClient::clbkCreateRenderWindow()
 {
 	try
 	{
+		// Create Win32 window
 		HWND hWnd;
 		char *strWndClass = "Orbiter Render Window";
 		if (GetVideoData()->fullscreen)
@@ -498,104 +534,89 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 	
 		mGldc = GetDC(hWnd);
 		createOpenGlContext(mGldc);
+
+		// Setup paths
+		auto binDir = std::filesystem::current_path() / "Modules/Plugin/OrbiterSkyboltClient";
+		if (!std::filesystem::exists(binDir))
 		{
-			auto binDir = std::filesystem::current_path() / "Modules/Plugin/OrbiterSkyboltClient";
-			if (!std::filesystem::exists(binDir))
-			{
-				throw std::runtime_error("Could not find skybolt plugin folder: " + binDir.string());
-			}
+			throw std::runtime_error("Could not find skybolt plugin folder: " + binDir.string());
+		}
 
 #ifndef OSG_LIBRARY_STATIC
-			appendToPathEnvironmentVariable(binDir.string()); // allow shared library build to find OSG plugin DLLS
+		appendToPathEnvironmentVariable(binDir.string()); // allow shared library build to find OSG plugin DLLS
 #endif
-			_putenv(("SKYBOLT_ASSETS_PATH=" + binDir.string() + "/Assets").c_str()); // TODO: pass path into engine directly without using environment variable
+		_putenv(("SKYBOLT_ASSETS_PATH=" + binDir.string() + "/Assets").c_str()); // TODO: pass path into engine directly without using environment variable
 
-			// Create engine
-			file::Path settingsFilename = file::getAppUserDataDirectory("OrbiterSkybolt").append("Settings.json");
+		// Create engine
+		file::Path settingsFilename = file::getAppUserDataDirectory("OrbiterSkybolt").append("Settings.json");
 
-			nlohmann::json settings;
-			if (std::filesystem::exists(settingsFilename))
-			{
-				BOOST_LOG_TRIVIAL(info) << "Reading Skybolt settings file '" << settingsFilename.string() << "'";
-				settings = readJsonFile(settingsFilename.string());
-			}
-			else
-			{
-				BOOST_LOG_TRIVIAL(info) << "Settings file not found: '" << settingsFilename.string() << "'. Creating defaults.";
-				settings = R"({
-		"tileApiKeys": {
-			"bing": "",
-			"mapbox": ""
-		},
-		"shadows": {
-			"enabled": true,
-			"textureSize": 2048,
-			"cascadeBoundingDistances": [0.02, 2.0,  20.0, 130.0, 7000]
-		}
-	})"_json;
-			}
+		nlohmann::json settings = readSettings(settingsFilename);
 
-			mEngineRoot = EngineRootFactory::create({}, settings);
+		mEngineRoot = EngineRootFactory::create({}, settings);
 
-			mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterElevation", [](const nlohmann::json& json) {
-				return std::make_shared<OrbiterElevationTileSource>(json.at("url"));
-			});
+		mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterElevation", [](const nlohmann::json& json) {
+			return std::make_shared<OrbiterElevationTileSource>(json.at("url"));
+		});
 
-			mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterImage", [](const nlohmann::json& json) {
-				return std::make_shared<OrbiterImageTileSource>(json.at("url"));
-			});
+		mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterImage", [](const nlohmann::json& json) {
+			return std::make_shared<OrbiterImageTileSource>(json.at("url"));
+		});
 
-			auto textureProvider = [this](SURFHANDLE surface) {
-				return findOptional(mTextures, surface).get_value_or(nullptr);
+		auto textureProvider = [this](SURFHANDLE surface) {
+			return findOptional(mTextures, surface).get_value_or(nullptr);
+		};
+
+		std::shared_ptr<ModelFactory> modelFactory;
+		{
+			ModelFactoryConfig config;
+			config.surfaceHandleFromTextureIdProvider = [this](MESHHANDLE mesh, int textureId) {
+				return getSurfaceHandleFromTextureId(mesh, textureId);
 			};
+			config.textureProvider = textureProvider;
+			config.program = mEngineRoot->programs.getRequiredProgram("model");
 
-			std::shared_ptr<ModelFactory> modelFactory;
-			{
-				ModelFactoryConfig config;
-				config.surfaceHandleFromTextureIdProvider = [this](MESHHANDLE mesh, int textureId) {
-					return getSurfaceHandleFromTextureId(mesh, textureId);
-				};
-				config.textureProvider = textureProvider;
-				config.program = mEngineRoot->programs.getRequiredProgram("model");
-
-				modelFactory = std::make_shared<ModelFactory>(config);
-			}
-
-			{
-				OrbiterEntityFactoryConfig config;
-				config.entityFactory = mEngineRoot->entityFactory.get();
-				config.scene = mEngineRoot->scene;
-				config.modelFactory = modelFactory;
-				config.shaderPrograms = &mEngineRoot->programs;
-
-				mEntityFactory = std::make_unique<OrbiterEntityFactory>(config);
-			}
-
-			mOverlayPanelFactory = std::make_unique<OverlayPanelFactory>(
-				[this] { return osg::Vec2i(mWindow->getWidth(), mWindow->getHeight()); },
-				textureProvider,
-				[this](int mfdId) { return GetMFDSurface(mfdId); }
-			);
-
-			// Create camera
-			mSimCamera = mEngineRoot->entityFactory->createEntity("Camera");
-			auto cameraComponent = mSimCamera->getFirstComponentRequired<sim::CameraComponent>();
-			cameraComponent->getState().fovY = 1.0;
-			cameraComponent->getState().nearClipDistance = 0.2f;
-			cameraComponent->getState().farClipDistance = 5e7;
-
-			auto cameraController = static_cast<sim::CameraControllerSelector*>(mSimCamera->getFirstComponentRequired<sim::CameraControllerComponent>()->cameraController.get());
-			cameraController->selectController("Null");
-
-			mEngineRoot->simWorld->addEntity(mSimCamera);
+			modelFactory = std::make_shared<ModelFactory>(config);
 		}
 
+		{
+			OrbiterEntityFactoryConfig config;
+			config.entityFactory = mEngineRoot->entityFactory.get();
+			config.scene = mEngineRoot->scene;
+			config.modelFactory = modelFactory;
+			config.shaderPrograms = &mEngineRoot->programs;
+
+			mEntityFactory = std::make_unique<OrbiterEntityFactory>(config);
+		}
+
+		mOverlayPanelFactory = std::make_unique<OverlayPanelFactory>(
+			[this] { return osg::Vec2i(mWindow->getWidth(), mWindow->getHeight()); },
+			textureProvider,
+			[this](int mfdId) { return GetMFDSurface(mfdId); }
+		);
+
+		// Create camera
+		mSimCamera = mEngineRoot->entityFactory->createEntity("Camera");
+		auto cameraComponent = mSimCamera->getFirstComponentRequired<sim::CameraComponent>();
+		cameraComponent->getState().fovY = 1.0;
+		cameraComponent->getState().nearClipDistance = 0.2f;
+		cameraComponent->getState().farClipDistance = 5e7;
+
+		auto cameraController = static_cast<sim::CameraControllerSelector*>(mSimCamera->getFirstComponentRequired<sim::CameraControllerComponent>()->cameraController.get());
+		cameraController->selectController("Null");
+
+		mEngineRoot->simWorld->addEntity(mSimCamera);
+
+		// Create starfield
 		mEngineRoot->simWorld->addEntity(mEngineRoot->entityFactory->createEntity("Stars"));
 
+		// Create skybolt embedded window
 		RECT rect;
 		GetClientRect(hWnd, &rect);
 
-		mWindow = std::make_unique<vis::EmbeddedWindow>(rect.right - rect.left, rect.bottom - rect.top);
+		vis::EmbeddedWindowConfig windowConfig;
+		windowConfig.rect = vis::RectI(0, 0, rect.right - rect.left, rect.bottom - rect.top);
+		windowConfig.displaySettings = skybolt::getDisplaySettingsFromEngineSettings(settings);
+		mWindow = std::make_unique<vis::EmbeddedWindow>(windowConfig);
 
 		// Attach camera to window
 		osg::ref_ptr<vis::RenderTarget> viewport = createAndAddViewportToWindow(*mWindow, mEngineRoot->programs.getRequiredProgram("compositeFinal"));
