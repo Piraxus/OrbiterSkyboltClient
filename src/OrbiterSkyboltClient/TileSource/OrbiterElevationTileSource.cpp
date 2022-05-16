@@ -75,7 +75,7 @@ osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const std::uint
 		{
 			for (int x = 1; x < 257; ++x)
 			{
-				*ptr++ = vis::getHeightmapSeaLevelValueInt() + source[y * 259 + x] + header.offset;
+				*ptr++ = vis::getHeightmapSeaLevelValueInt() + source[y * 259 + x] + int(header.offset);
 			}
 		}
 	}
@@ -91,7 +91,9 @@ osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const std::uint
 		{
 			for (int x = 1; x < 257; ++x)
 			{
-				*ptr++ = vis::getHeightmapSeaLevelValueInt() + source[y * 259 + x] + header.offset;
+				// TODO: add support to skybolt for tile offsets and remove clamp. This needed for bodies like as Vesta
+				// which have a height range exceeding 16 bit limits.
+				*ptr++ = std::clamp(vis::getHeightmapSeaLevelValueInt() + source[y * 259 + x] + int(header.offset), 0, 65535);
 			}
 		}
 	}

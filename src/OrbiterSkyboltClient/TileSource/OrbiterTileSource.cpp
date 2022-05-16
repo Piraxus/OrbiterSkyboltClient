@@ -76,29 +76,42 @@ bool OrbiterTileSource::hasAnyChildren(const skybolt::QuadTreeTileKey& key) cons
 	return false;
 }
 
+//! @return index of tile with the given key if it exists. Returns -1 if it does not exist.
+//! @param highestTileOut is the key for the highest available tile found in the given tile's ancestry.
 static DWORD getHighestAvailableTile(const ZTreeMgr& treeMgr, int lvl, int ilat, int ilng, skybolt::QuadTreeTileKey& highestTileOut)
 {
-	if (lvl <= orbiterLevelZeroOffset) {
-		return treeMgr.Idx(lvl, ilat, ilng);
-	} else {
+	int idx;
+	if (lvl <= orbiterLevelZeroOffset)
+	{
+		idx = treeMgr.Idx(lvl, ilat, ilng);
+	}
+	else
+	{
+		// Get tile index from the parent
 		int plvl = lvl-1;
 		int pilat = ilat/2;
 		int pilng = ilng/2;
 		DWORD pidx = getHighestAvailableTile(treeMgr, plvl, pilat, pilng, highestTileOut);
 		if (pidx == (DWORD)-1)
 		{
-			return pidx;
+			// The parent does not exist, therefore this tile does not exist
+			return -1;
 		}
 		else
 		{
-			highestTileOut.level = plvl;
-			highestTileOut.x = pilng;
-			highestTileOut.y = pilat;
+			int cidx = ((ilat&1) << 1) + (ilng&1);
+			idx = treeMgr.TOC()[pidx].child[cidx];
 		}
-
-		int cidx = ((ilat&1) << 1) + (ilng&1);
-		return treeMgr.TOC()[pidx].child[cidx];
 	}
+
+	if (idx != -1)
+	{
+		highestTileOut.level = lvl;
+		highestTileOut.x = ilng;
+		highestTileOut.y = ilat;
+	}
+
+	return idx;
 }
 
 std::optional<skybolt::QuadTreeTileKey> OrbiterTileSource::getHighestAvailableLevel(const skybolt::QuadTreeTileKey& key) const
