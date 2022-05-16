@@ -59,14 +59,17 @@ osg::ref_ptr<osg::Image> OrbiterTileSource::createImage(const skybolt::QuadTreeT
 
 bool OrbiterTileSource::hasAnyChildren(const skybolt::QuadTreeTileKey& key) const
 {
-	DWORD idx = mTreeMgr->Idx(key.level + orbiterLevelZeroOffset, key.y, key.x);
-	if (idx != -1)
+	if (mTreeMgr)
 	{
-		for (int c = 0; c < 4; ++c)
+		DWORD idx = mTreeMgr->Idx(key.level + orbiterLevelZeroOffset, key.y, key.x);
+		if (idx != -1)
 		{
-			if (mTreeMgr->TOC()[idx].child[c] != -1)
+			for (int c = 0; c < 4; ++c)
 			{
-				return true;
+				if (mTreeMgr->TOC()[idx].child[c] != -1)
+				{
+					return true;
+				}
 			}
 		}
 	}
@@ -100,14 +103,17 @@ static DWORD getHighestAvailableTile(const ZTreeMgr& treeMgr, int lvl, int ilat,
 
 std::optional<skybolt::QuadTreeTileKey> OrbiterTileSource::getHighestAvailableLevel(const skybolt::QuadTreeTileKey& key) const
 {
-	skybolt::QuadTreeTileKey result;
-	result.level = -1;
-	getHighestAvailableTile(*mTreeMgr, key.level + orbiterLevelZeroOffset, key.y, key.x, result);
-	
-	if (result.level != -1)
+	if (mTreeMgr)
 	{
-		result.level -= orbiterLevelZeroOffset;
-		return result;
+		skybolt::QuadTreeTileKey result;
+		result.level = -1;
+		getHighestAvailableTile(*mTreeMgr, key.level + orbiterLevelZeroOffset, key.y, key.x, result);
+	
+		if (result.level != -1)
+		{
+			result.level -= orbiterLevelZeroOffset;
+			return result;
+		}
 	}
 	return std::nullopt;
 }
