@@ -12,6 +12,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "GraphicsAPI.h"
 
+#include "TextureProvider.h"
+
 #include <SkyboltEngine/SkyboltEngineFwd.h>
 #include <SkyboltSim/SkyboltSimFwd.h>
 #include <SkyboltVis/SkyboltVisFwd.h>
@@ -29,6 +31,7 @@ struct OrbiterEntityFactoryConfig
 	std::shared_ptr<ModelFactory> modelFactory;
 	oapi::GraphicsClient* graphicsClient;
 	skybolt::vis::ShaderPrograms* shaderPrograms;
+	TextureProvider textureProvider;
 };
 
 class OrbiterEntityFactory
@@ -54,4 +57,5 @@ private:
 	std::shared_ptr<ModelFactory> mModelFactory;
 	oapi::GraphicsClient* mGraphicsClient;
 	skybolt::vis::ShaderPrograms* mShaderPrograms;
+	TextureProvider mTextureProvider;
 };

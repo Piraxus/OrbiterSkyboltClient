@@ -36,30 +36,42 @@ SkyboltParticleStream::SkyboltParticleStream(oapi::GraphicsClient* gc, PARTICLES
 	mEntityFinder(std::move(entityFinder)),
 	mDestructionAction(std::move(destructionAction))
 {
-	double halfSpeedSpread = pss->srcspread * 0.5; 
+	double elevationAngleMin = math::halfPiD() - atan(0.5 * pss->srcspread);
+	double elevationAngleMax = math::halfPiD();
 
 	// calculate automatic emission rate instead of using pss->srcrate
 	// because pss->srcrate values are too low to give nice looking particle streams.
 	double emissionRate = std::min(1000.0, 2.0 * pss->v0 / pss->srcsize);
 
+	nlohmann::json particleSystemJson = {
+		{ "emissionRate", emissionRate },
+		{ "radius", pss->srcsize * 0.5 },
+		{ "elevationAngleMin", elevationAngleMin },
+		{ "elevationAngleMax", elevationAngleMax },
+		{ "speedMin", pss->v0 },
+		{ "speedMax", pss->v0 },
+		{ "upDirection", nlohmann::json::array({1, 0, 0}) },
+		{ "lifetime", pss->lifetime },
+		{ "radiusLinearGrowthPerSecond", pss->growthrate * 0.5 },
+		{ "atmosphericSlowdownFactor", pss->atmslowdown },
+		{ "zeroAtmosphericDensityAlpha", 0.0 },
+		{ "earthSeaLevelAtmosphericDensityAlpha", 1.0 },
+		{ "albedoTexture", "Environment/Explosion01_light_nofire.png" }
+	};
+
+	// Orbiter has no concept of particle temperature, so assume particles are hot if they are emissive
+	if (pss->ltype == PARTICLESTREAMSPEC::EMISSIVE)
+	{
+		particleSystemJson["initialTemperatureDegreesCelcius"] = 2000;
+		particleSystemJson["heatTransferCoefficent"] = 4.0;
+	}
+
 	nlohmann::json json = {
-	{"components", nlohmann::json::array({
-		{{"node", {
-		}}},
-		{{"particleSystem", {
-			{ "emissionRate", emissionRate },
-			{ "radius", pss->srcsize * 0.5 },
-			{ "elevationAngleMin", math::halfPiD() },
-			{ "elevationAngleMax", math::halfPiD() },
-			{ "speedMin", pss->v0 - halfSpeedSpread },
-			{ "speedMax", pss->v0 + halfSpeedSpread },
-			{ "upDirection", nlohmann::json::array({1, 0, 0}) },
-			{ "lifetime", pss->lifetime },
-			{ "radiusLinearGrowthPerSecond", pss->growthrate * 0.5 },
-			{ "atmosphericSlowdownFactor", pss->atmslowdown },
-			{ "albedoTexture", "Environment/Explosion01_light_nofire.png" }
-		}}}
-	})}
+		{"components", nlohmann::json::array({
+			{{"node", {
+			}}},
+			{{"particleSystem", particleSystemJson}}
+		})}
 	};
 
 	std::string name = entityFactory.createUniqueObjectName("particles");

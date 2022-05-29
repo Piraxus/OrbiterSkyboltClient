@@ -8,9 +8,13 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include <OrbiterAPI.h>
+#include <VesselAPI.h>
+
 #include "OrbiterEntityFactory.h"
 
 #include "DistantCelestialBodyFactory.h"
+#include "Exhaust.h"
 #include "ModelFactory.h"
 #include "OrbiterModel.h"
 #include "ObjectUtil.h"
@@ -21,10 +25,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/Scene.h>
 #include <SkyboltSim/Components/NameComponent.h>
 #include <SkyboltSim/Components/Node.h>
+#include <SkyboltVis/Renderable/Beams.h>
 #include <SkyboltVis/Renderable/Model/Model.h>
 #include <SkyboltVis/Shader/ShaderProgramRegistry.h>
-
-#include "VesselAPI.h"
 
 using namespace oapi;
 using namespace skybolt;
@@ -34,13 +37,15 @@ OrbiterEntityFactory::OrbiterEntityFactory(const OrbiterEntityFactoryConfig& con
 	mScene(config.scene),
 	mModelFactory(config.modelFactory),
 	mGraphicsClient(config.graphicsClient),
-	mShaderPrograms(config.shaderPrograms)
+	mShaderPrograms(config.shaderPrograms),
+	mTextureProvider(config.textureProvider)
 {
 	assert(mEntityFactory);
 	assert(mScene);
 	assert(mModelFactory);
 	assert(mGraphicsClient);
 	assert(mShaderPrograms);
+	assert(mTextureProvider);
 }
 
 OrbiterEntityFactory::~OrbiterEntityFactory() = default;
@@ -88,17 +93,35 @@ sim::EntityPtr OrbiterEntityFactory::createVessel(OBJHANDLE object, VESSEL* vess
 			int visFlags = (int)vessel->GetMeshVisibilityMode(i);
 			if (visFlags != MESHVIS_NEVER)
 			{
-				VECTOR3 offset;
-				vessel->GetMeshOffset(i, offset);
+				// Create model
+				{
+					VECTOR3 offset;
+					vessel->GetMeshOffset(i, offset);
 
-				vis::ModelPtr model = mModelFactory->createModel(hMesh, object, i, visFlags);
-				visObjectsComponent->addObject(model);
+					vis::ModelPtr model = mModelFactory->createModel(hMesh, object, i, visFlags);
+					visObjectsComponent->addObject(model);
 
-				SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,
-					orbiterVector3ToOsg(offset),
-					osg::Quat()
-				));
-				simVisBindingComponent->bindings.push_back(simVis);
+					SimVisBindingPtr simVis(new SimpleSimVisBinding(entity.get(), model,
+						orbiterVector3ToOsg(offset),
+						osg::Quat()
+					));
+					simVisBindingComponent->bindings.push_back(simVis);
+				}
+
+				// Create exhausts
+				{
+					vis::BeamsConfig beamsConfig;
+					beamsConfig.program = mShaderPrograms->getRequiredProgram("beams");
+					beamsConfig.geometricParams.basePartBounds = vis::Box2f(osg::Vec2f(0.50390625f, 0.00390625f), osg::Vec2f(0.99609375f, 0.49609375f));
+					beamsConfig.geometricParams.extrusionPartBounds = vis::Box2f(osg::Vec2f(0.01f, 0), osg::Vec2f(0.24f, 1));
+					beamsConfig.geometricParams.extrusionOffsetFraction = -0.025f;
+					beamsConfig.geometricParams.baseRadiusMultiplier = 1.5;
+					auto beams = std::make_shared<vis::Beams>(beamsConfig);
+					visObjectsComponent->addObject(beams);
+
+					auto exhaust = std::make_shared<Exhaust>(vessel, entity.get(), beams, mTextureProvider);
+					simVisBindingComponent->bindings.push_back(exhaust);
+				}
 			}
 		}
 	}

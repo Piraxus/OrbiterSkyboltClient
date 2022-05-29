@@ -131,12 +131,7 @@ void SkyboltClient::clbkRefreshVideoData()
 
 static osg::ref_ptr<osg::Texture2D> readAlbedoTexture(const std::string& filename)
 {
-	auto image = osgDB::readImageFile(filename);
-	image->setInternalTextureFormat(vis::toSrgbInternalFormat(image->getInternalTextureFormat()));
-	osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D(image);
-	texture->setFilter(osg::Texture::FilterParameter::MIN_FILTER, osg::Texture::FilterMode::LINEAR_MIPMAP_LINEAR);
-	texture->setFilter(osg::Texture::FilterParameter::MAG_FILTER, osg::Texture::FilterMode::LINEAR);
-	return texture;
+	return vis::createSrgbTexture(osgDB::readImageFile(filename));
 }
 
 #define LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS 4
@@ -584,6 +579,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 			config.scene = mEngineRoot->scene;
 			config.modelFactory = modelFactory;
 			config.shaderPrograms = &mEngineRoot->programs;
+			config.textureProvider = textureProvider;
 
 			mEntityFactory = std::make_unique<OrbiterEntityFactory>(config);
 		}
@@ -898,7 +894,19 @@ void SkyboltClient::translateEntities()
 		auto it = mEntities.find(object);
 		if (it == mEntities.end())
 		{
-			entity = mEntityFactory->createEntity(object);
+			try
+			{
+				entity = mEntityFactory->createEntity(object);
+			}
+			catch(const std::exception& e)
+			{
+				static std::set<OBJHANDLE> failedObjects;
+				if (failedObjects.insert(object).second)
+				{
+					BOOST_LOG_TRIVIAL(error) << "Could not create entity '" << getName(object) << "'. Error: " << e.what();
+				}
+			}
+
 			if (entity)
 			{
 				updateEntity(object, *entity);

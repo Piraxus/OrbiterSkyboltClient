@@ -13,6 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "GraphicsAPI.h"
 
 #include "OrbiterModel.h"
+#include "TextureProvider.h"
 #include <SkyboltVis/SkyboltVisFwd.h>
 
 #include <osg/Program>
@@ -22,7 +23,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <memory>
 
 using SurfaceHandleFromTextureIdProvider = std::function<SURFHANDLE(MESHHANDLE mesh, int)>;
-using TextureProvider = std::function<osg::ref_ptr<osg::Texture2D>(SURFHANDLE)>; //! Returns null if texture not found
 
 struct ModelFactoryConfig
 {

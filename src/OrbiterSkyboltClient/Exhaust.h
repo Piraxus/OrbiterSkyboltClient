@@ -10,27 +10,21 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
-#include "GraphicsAPI.h"
-#include "OrbiterTextureIds.h"
 #include "TextureProvider.h"
+#include <SkyboltVis/SkyboltVisFwd.h>
+#include <SkyboltEngine/SimVisBinding/SimVisBinding.h>
 
-#include <osg/Geode>
-#include <osg/Texture2D>
+class VESSEL;
 
-#include <functional>
-
-using WindowSizeProvider = std::function<osg::Vec2i()>;
-using MfdSurfaceProvider = std::function<SURFHANDLE(int mfdId)>; //! Returns null if MFD not found
-
-class OverlayPanelFactory
+class Exhaust : public skybolt::SimpleSimVisBinding
 {
 public:
-	OverlayPanelFactory(WindowSizeProvider windowSizeProvider, TextureProvider textureProvider, MfdSurfaceProvider mfdSurfaceProvider);
+	Exhaust(VESSEL* vessel, const skybolt::sim::Entity* entity, const skybolt::vis::BeamsPtr& beams, const TextureProvider& textureProvider);
 
-	osg::ref_ptr<osg::Geode> createOverlayPanel(SURFHANDLE *hSurf, MESHHANDLE hMesh, MATRIX3 *T, float alpha, bool additive);
+	void syncVis(const skybolt::GeocentricToNedConverter& converter) override;
 
 private:
-	WindowSizeProvider mWindowSizeProvider;
 	TextureProvider mTextureProvider;
-	MfdSurfaceProvider mMfdSurfaceProvider;
+	VESSEL* mVessel;
+	skybolt::vis::BeamsPtr mBeams;
 };

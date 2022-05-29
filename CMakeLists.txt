@@ -4,6 +4,7 @@ project(OrbiterSkyboltClient)
 enable_testing()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMake/" "${CMAKE_SOURCE_DIR}/CMake/Modules/")
+set(CMAKE_PREFIX_PATH $ENV{CMAKE_PREFIX_PATH_PREPEND} ${CMAKE_PREFIX_PATH})
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
