@@ -554,7 +554,8 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		});
 
 		mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterImage", [](const nlohmann::json& json) {
-			return std::make_shared<OrbiterImageTileSource>(json.at("url"));
+			auto layerType = (json.at("layerType") == "albedo") ? OrbiterImageTileSource::LayerType::Albedo : OrbiterImageTileSource::LayerType::LandMask;
+			return std::make_shared<OrbiterImageTileSource>(json.at("url"), layerType);
 		});
 
 		auto textureProvider = [this](SURFHANDLE surface) {

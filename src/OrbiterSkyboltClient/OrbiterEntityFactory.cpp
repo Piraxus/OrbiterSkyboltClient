@@ -153,6 +153,7 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 			{"albedo", {
 				{"format", "orbiterImage"},
 				{"url", planetTexturePath},
+				{"layerType", "albedo"},
 				{"maxLevel", 13}
 			}},
 			{"uniformDetail", {
@@ -184,6 +185,13 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 
 			planetJson["clouds"] = {
 				{"map", "Environment/Cloud/cloud_combined_8192.png"}
+			};
+
+			planetJson["surface"]["landMask"] = {
+				{"format", "orbiterImage"},
+				{"url", planetTexturePath},
+				{"layerType", "landMask"},
+				{"maxLevel", 13}
 			};
 		}
 		else if (name == "Mars")

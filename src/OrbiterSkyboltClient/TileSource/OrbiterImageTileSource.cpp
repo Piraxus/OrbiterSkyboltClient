@@ -16,8 +16,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <osgDB/Registry>
 #include <boost/scope_exit.hpp>
 
-OrbiterImageTileSource::OrbiterImageTileSource(const std::string& directory) :
-	OrbiterTileSource(std::make_unique<ZTreeMgr>(directory.c_str(), ZTreeMgr::LAYER_SURF))
+OrbiterImageTileSource::OrbiterImageTileSource(const std::string& directory, const LayerType& layerType) :
+	OrbiterTileSource(std::make_unique<ZTreeMgr>(directory.c_str(), layerType == LayerType::LandMask ? ZTreeMgr::LAYER_MASK : ZTreeMgr::LAYER_SURF)),
+	mInterpretTextureAsDxt1Rgba(layerType == LayerType::LandMask)
 {
 }
 
@@ -32,6 +33,15 @@ osg::ref_ptr<osg::Image> OrbiterImageTileSource::createImage(const std::uint8_t*
 
 	if (image)
 	{
+		if (mInterpretTextureAsDxt1Rgba)
+		{
+			// Orbiter land mask textures should be interpreted as having an alpha channel, but the texture headers incorrectly encode usingAlpha=false.
+			// We work around this by forcing DXT1 RGBA format here.
+			assert(image->getInternalTextureFormat() == GL_COMPRESSED_RGB_S3TC_DXT1_EXT);
+			image->setInternalTextureFormat(GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
+			image->setPixelFormat(GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
+		}
+
 		image->flipVertical();
 	}
 

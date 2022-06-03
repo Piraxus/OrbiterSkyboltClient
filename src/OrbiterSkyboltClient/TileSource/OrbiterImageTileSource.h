@@ -16,9 +16,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 class OrbiterImageTileSource : public OrbiterTileSource
 {
 public:
-	OrbiterImageTileSource(const std::string& directory);
+	enum class LayerType
+	{
+		Albedo,
+		LandMask
+	};
+
+	OrbiterImageTileSource(const std::string& directory, const LayerType& layerType);
 	~OrbiterImageTileSource() override = default;
 
 protected:
 	osg::ref_ptr<osg::Image> createImage(const std::uint8_t* buffer, std::size_t sizeBytes) const;
+
+private:
+	bool mInterpretTextureAsDxt1Rgba;
 };
