@@ -49,13 +49,13 @@ public:
 		oapiGetGlobalPos(mObjectHandle, &sunPosition);
 		oapiCameraGlobalPos(&cameraPosition);
 
-		setPosition(*mEntity, toSkyboltVector3GlobalAxes(sunPosition));
+		setPosition(*mEntity, orbiterToSkyboltVector3GlobalAxes(sunPosition));
 
 		// Set light direction
 		VECTOR3 dir = sunPosition - cameraPosition;
 		normalise(dir);
 
-		sim::Vector3 lightDirection = toSkyboltVector3GlobalAxes(dir);
+		sim::Vector3 lightDirection = orbiterToSkyboltVector3GlobalAxes(dir);
 		glm::vec3 tangent, bitangent;
 		math::getOrthonormalBasis(lightDirection, tangent, bitangent);
 		glm::mat3 m(lightDirection, tangent, bitangent);

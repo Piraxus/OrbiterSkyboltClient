@@ -65,8 +65,8 @@ void Exhaust::syncVis(const GeocentricToNedConverter& converter)
 			}
 
 			vis::Beams::BeamParams params;
-			params.relPosition = toOsgVec3f(toSkyboltVector3BodyAxes(*es.lpos));
-			params.relDirection = -toOsgVec3f(toSkyboltVector3BodyAxes(*es.ldir));
+			params.relPosition = toOsgVec3f(orbiterToSkyboltVector3BodyAxes(*es.lpos));
+			params.relDirection = -toOsgVec3f(orbiterToSkyboltVector3BodyAxes(*es.ldir));
 			params.length = es.lsize;
 			params.radius = es.wsize * 0.5;
 			params.alpha = alpha;

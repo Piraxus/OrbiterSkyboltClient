@@ -15,8 +15,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltSim/SimMath.h>
 #include <string>
 
+#include <osg/Vec3>
+
 std::string getName(OBJHANDLE object);
 
-skybolt::sim::Vector3 toSkyboltVector3GlobalAxes(const VECTOR3& v);
+skybolt::sim::Vector3 orbiterToSkyboltVector3GlobalAxes(const VECTOR3& v);
 
-skybolt::sim::Vector3 toSkyboltVector3BodyAxes(const VECTOR3& v);
+skybolt::sim::Vector3 orbiterToSkyboltVector3BodyAxes(const VECTOR3& v);
+
+osg::Vec3f orbiterToSkyboltVector3BodyAxes(const float* v);
+
+osg::Vec3f skyboltToOrbiterVector3BodyAxes(const osg::Vec3f& v);

@@ -43,7 +43,7 @@ private:
 	struct CreateMeshResult
 	{
 		osg::ref_ptr<osg::Node> node;
-		std::vector<int> meshGroupToGeometryIndex; //!< Maps orbiter mesh group ID to osg geometry ID. Index is -1 if the mesh group has no geometry
+		std::vector<std::optional<MeshGroupData>> meshGroupData;
 	};
 	ModelFactory::CreateMeshResult getOrCreateMesh(MESHHANDLE mesh) const;
 	void populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, const MESHGROUP& group) const;

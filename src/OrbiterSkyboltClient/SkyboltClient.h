@@ -62,11 +62,13 @@ public:
 
 	int clbkVisEvent (OBJHANDLE hObj, VISHANDLE vis, DWORD msg, DWORD_PTR context) override;
 
+	//! @return type is actually DEVMESHHANDLE since we are a graphics client. MESHHANDLE is a hangover from inline graphics.
+	//! @idx is the mesh group index.
 	MESHHANDLE clbkGetMesh(VISHANDLE vis, UINT idx) override;
 
-	int clbkGetMeshGroup (DEVMESHHANDLE hMesh, DWORD grpidx, GROUPREQUESTSPEC *grs) override { return -2; }
+	int clbkGetMeshGroup (DEVMESHHANDLE hMesh, DWORD grpidx, GROUPREQUESTSPEC *grs) override;
 
-	int clbkEditMeshGroup (DEVMESHHANDLE hMesh, DWORD grpidx, GROUPEDITSPEC *ges) override { return -2; }
+	int clbkEditMeshGroup (DEVMESHHANDLE hMesh, DWORD grpidx, GROUPEDITSPEC *ges) override;
 
 	void clbkPreOpenPopup () override {}
 

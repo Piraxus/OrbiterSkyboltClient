@@ -16,18 +16,34 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include <osg/Texture2D>
 
+#include <optional>
+
+struct MeshGroupData
+{
+	int osgGeometryIndex;
+	int orbiterMaterialIndex;
+	int orbiterTextureIndex;
+
+	static constexpr int userFlagNoShadow = 1;
+	static constexpr int userFlagSkip = 2;
+	int orbiterUserFlags;
+};
+
 struct OrbiterModelConfig : public skybolt::vis::ModelConfig
 {
 	OBJHANDLE owningObject;
 	int meshId;
 	int meshVisibilityCategoryFlags;
-	std::vector<int> meshGroupToGeometryIndex; //!< Maps orbiter mesh group ID to osg geometry ID. Index is -1 if the mesh group has no geometry
+	std::vector<std::optional<MeshGroupData>> meshGroupData;
 };
 
 class OrbiterModel : public skybolt::vis::Model
 {
 public:
 	OrbiterModel(const OrbiterModelConfig& config);
+
+	bool getMeshGroupData(int groupId, GROUPREQUESTSPEC& grs);
+	bool setMeshGroupData(int groupId, GROUPEDITSPEC& ges);
 
 	void setMeshTexture(int groupId, const osg::ref_ptr<osg::Texture2D>& texture);
 	void useMeshAsMfd(int groupId, const osg::ref_ptr<osg::Program>& program, bool alphaBlend);
@@ -39,12 +55,14 @@ public:
 	int getMeshVisibilityCategoryFlags() const { return mMeshVisibilityCategoryFlags; }
 
 private:
-	osg::Drawable* getDrawable(int groupId) const; //!< Returns null if drawable not found for groupId
+	std::optional<MeshGroupData> getMeshGroupData(int groupId) const;
+	osg::Drawable* getDrawable(const MeshGroupData& data) const; //!< Returns null if drawable not found for mesh group
+	osg::Drawable* getDrawableForGroupId(int groupId) const; //!< Returns null if drawable not found for groupId
 
 private:
 	OBJHANDLE mOwningObject;
 	int mMeshId;
 	int mMeshVisibilityCategoryFlags;
-	std::vector<int> mMeshGroupToGeometryIndex;
+	std::vector<std::optional<MeshGroupData>> mMeshGroupData;
 	std::set<int> mMfdGroupIds;
 };

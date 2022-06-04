@@ -167,6 +167,44 @@ void SkyboltClient::clbkReleaseTexture(SURFHANDLE hTex)
 {
 }
 
+static VISHANDLE entityToVisHandle(sim::Entity* entity)
+{
+	return reinterpret_cast<VISHANDLE>(entity);
+}
+
+static sim::Entity* visHandleToEntity(VISHANDLE handle)
+{
+	return reinterpret_cast<sim::Entity*>(handle);
+}
+
+//! @return null if not found
+static OrbiterModel* getOrbiterModel(const sim::Entity& entity, int index)
+{
+	auto visObject = entity.getFirstComponent<VisObjectsComponent>();
+	if (visObject)
+	{
+		int i = 0;
+		for (const auto& object : visObject->getObjects())
+		{
+			auto model = dynamic_cast<OrbiterModel*>(object.get());
+			if (model)
+			{
+				if (i == index)
+				{
+					return model;
+				}
+				++i;
+			}
+		}
+	}
+	return nullptr;
+}
+
+static OrbiterModel* meshHandleToOrbiterModel(DEVMESHHANDLE handle)
+{
+	return reinterpret_cast<OrbiterModel*>(handle);
+}
+
 int SkyboltClient::clbkVisEvent(OBJHANDLE hObj, VISHANDLE vis, DWORD msg, DWORD_PTR context)
 {
 	return -2;
@@ -174,7 +212,22 @@ int SkyboltClient::clbkVisEvent(OBJHANDLE hObj, VISHANDLE vis, DWORD msg, DWORD_
 
 MESHHANDLE SkyboltClient::clbkGetMesh(VISHANDLE vis, UINT idx)
 {
-	return NULL;
+	sim::Entity* entity = visHandleToEntity(vis);
+	return getOrbiterModel(*entity, idx);
+}
+
+int SkyboltClient::clbkGetMeshGroup(DEVMESHHANDLE hMesh, DWORD grpidx, GROUPREQUESTSPEC *grs)
+{
+	OrbiterModel* model = meshHandleToOrbiterModel(hMesh);
+	bool success = model->getMeshGroupData(grpidx, *grs);
+	return success ? 0 : -2;
+}
+
+int SkyboltClient::clbkEditMeshGroup(DEVMESHHANDLE hMesh, DWORD grpidx, GROUPEDITSPEC *ges)
+{
+	OrbiterModel* model = meshHandleToOrbiterModel(hMesh);
+	bool success = model->setMeshGroupData(grpidx, *ges);
+	return success ? 0 : -2;
 }
 
 ParticleStream* SkyboltClient::clbkCreateParticleStream(PARTICLESTREAMSPEC *pss)
@@ -699,7 +752,7 @@ static void updateCamera(sim::Entity& camera)
 	VECTOR3 gpos;
 	oapiCameraGlobalPos(&gpos);
 
-	setPosition(camera, toSkyboltVector3GlobalAxes(gpos));
+	setPosition(camera, orbiterToSkyboltVector3GlobalAxes(gpos));
 
 	MATRIX3 mat;
 	oapiCameraRotationMatrix(&mat);
@@ -764,7 +817,7 @@ void SkyboltClient::updateEntity(OBJHANDLE object, sim::Entity& entity) const
 	VECTOR3 gpos;
 	oapiGetGlobalPos(object, &gpos);
 
-	setPosition(entity, toSkyboltVector3GlobalAxes(gpos));
+	setPosition(entity, orbiterToSkyboltVector3GlobalAxes(gpos));
 
 	MATRIX3 mat;
 	oapiGetRotationMatrix(object, &mat);
@@ -775,9 +828,9 @@ void SkyboltClient::updateEntity(OBJHANDLE object, sim::Entity& entity) const
 	if (visObject)
 	{
 		bool isVirtualCockpit = (oapiCameraInternal() && (object == oapiGetFocusObject()) && (oapiCockpitMode() == COCKPIT_VIRTUAL));
-		for (const auto& object : visObject->getObjects())
+		for (const auto& visObject : visObject->getObjects())
 		{
-			auto model = dynamic_cast<OrbiterModel*>(object.get());
+			auto model = dynamic_cast<OrbiterModel*>(visObject.get());
 			if (model)
 			{
 				// Set model visible if it should be visible to either main or shadow cameras
@@ -883,6 +936,7 @@ void SkyboltClient::translateEntities()
 	{
 		if (objectsSet.find(handle) == objectsSet.end())
 		{
+			UnregisterVisObject(handle);
 			mEngineRoot->simWorld->removeEntity(entity.get());
 		}
 	}
@@ -911,8 +965,8 @@ void SkyboltClient::translateEntities()
 			if (entity)
 			{
 				updateEntity(object, *entity);
-
 				mEngineRoot->simWorld->addEntity(entity);
+				RegisterVisObject(object, entityToVisHandle(entity.get()));
 			}
 		}
 		else
