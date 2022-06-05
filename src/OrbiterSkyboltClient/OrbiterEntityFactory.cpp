@@ -27,6 +27,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltSim/Components/Node.h>
 #include <SkyboltVis/Renderable/Beams.h>
 #include <SkyboltVis/Renderable/Model/Model.h>
+#include <SkyboltVis/Renderable/Planet/Planet.h>
 #include <SkyboltVis/Shader/ShaderProgramRegistry.h>
 
 using namespace oapi;
@@ -220,7 +221,10 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 		}}}
 	};
 
-	return mEntityFactory->createEntityFromJson(j, name, math::dvec3Zero(), math::dquatIdentity());
+	sim::EntityPtr entity = mEntityFactory->createEntityFromJson(j, name, math::dvec3Zero(), math::dquatIdentity());
+	vis::Planet* planet = getFirstVisObject<vis::Planet>(*entity).get();
+	planet->setWaveHeight(10);
+	return entity;
 }
 
 sim::EntityPtr OrbiterEntityFactory::createBase(OBJHANDLE object) const

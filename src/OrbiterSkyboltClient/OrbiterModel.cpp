@@ -98,7 +98,7 @@ bool OrbiterModel::getMeshGroupData(int groupId, GROUPREQUESTSPEC& grs)
 				{
 					auto indices = reinterpret_cast<const unsigned int*>(elements->getDataPointer());
 
-					for (int index = 0; index < grs.nIdx; ++index)
+					for (DWORD index = 0; index < grs.nIdx; ++index)
 					{
 						int i = grs.VtxPerm ? grs.IdxPerm[index] : index;
 						grs.Idx[index] = indices[i];
@@ -144,7 +144,7 @@ bool OrbiterModel::setMeshGroupData(int groupId, GROUPEDITSPEC& ges)
 				auto& normals = *reinterpret_cast<osg::Vec3Array*>(geometry->getNormalArray());
 				auto& uvs = *reinterpret_cast<osg::Vec2Array*>(geometry->getTexCoordArrayList().front().get());
 
-				for (int index = 0; index < ges.nVtx; ++index)
+				for (DWORD index = 0; index < ges.nVtx; ++index)
 				{
 					const NTVERTEX& v = ges.Vtx[index];
 					int i = ges.vIdx ? ges.vIdx[index] : index;

@@ -29,11 +29,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltEngine/EngineSettings.h>
 #include <SkyboltEngine/SimVisBinding/CameraSimVisBinding.h>
 #include <SkyboltEngine/VisObjectsComponent.h>
+#include <SkyboltEnginePlugins/FftOcean/FftOceanPlugin.h>
 #include <SkyboltSim/Entity.h>
 #include <SkyboltSim/World.h>
 #include <SkyboltSim/CameraController/CameraControllerSelector.h>
 #include <SkyboltSim/Components/CameraComponent.h>
 #include <SkyboltSim/Components/CameraControllerComponent.h>
+#include <SkyboltSim/Spatial/Geocentric.h>
+#include <SkyboltSim/System/SimStepper.h>
+#include <SkyboltSim/System/System.h>
 #include <SkyboltVis/Camera.h>
 #include <SkyboltVis/OsgImageHelpers.h>
 #include <SkyboltVis/OsgStateSetHelpers.h>
@@ -42,9 +46,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/RenderTarget/RenderTexture.h>
 #include <SkyboltVis/RenderTarget/Viewport.h>
 #include <SkyboltVis/RenderTarget/ViewportHelpers.h>
-#include <SkyboltSim/Spatial/Geocentric.h>
-#include <SkyboltSim/System/SimStepper.h>
-#include <SkyboltSim/System/System.h>
 #include <SkyboltVis/VisibilityCategory.h>
 #include <SkyboltVis/Window/EmbeddedWindow.h>
 #include <SkyboltCommon/MapUtility.h>
@@ -600,7 +601,8 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 
 		nlohmann::json settings = readSettings(settingsFilename);
 
-		mEngineRoot = EngineRootFactory::create({}, settings);
+		std::vector<PluginFactory> enginePluginFactories = {&skybolt::plugins::createFftOceanPlugin};
+		mEngineRoot = EngineRootFactory::create(enginePluginFactories, settings);
 
 		mEngineRoot->tileSourceFactoryRegistry->addFactory("orbiterElevation", [](const nlohmann::json& json) {
 			return std::make_shared<OrbiterElevationTileSource>(json.at("url"));

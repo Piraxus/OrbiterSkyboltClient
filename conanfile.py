@@ -17,8 +17,11 @@ class SkyboltConan(ConanFile):
 
     requires = [
 		"glew/2.2.0@_/_",
-		"skybolt/1.3.1@_/_"
+		"skybolt/1.3.2@_/_"
 	]
+
+    def configure(self):
+        self.options["skybolt"].shared_plugins = False
 
     def build(self):
         cmake = CMake(self)
