@@ -29,7 +29,9 @@ public:
 
 	//! @returns the highest key with source data in the given key's ancestral hierarchy
 	//!@ThreadSafe
-	virtual std::optional<skybolt::QuadTreeTileKey> getHighestAvailableLevel(const skybolt::QuadTreeTileKey& key) const  override;
+	std::optional<skybolt::QuadTreeTileKey> getHighestAvailableLevel(const skybolt::QuadTreeTileKey& key) const  override;
+
+	const std::string& getCacheSha() const override  { static std::string s = "OrbiterTileSource"; return s; }
 
 protected:
 	virtual osg::ref_ptr<osg::Image> createImage(const std::uint8_t* buffer, std::size_t sizeBytes)const = 0;

@@ -29,6 +29,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltEngine/EngineSettings.h>
 #include <SkyboltEngine/SimVisBinding/CameraSimVisBinding.h>
 #include <SkyboltEngine/VisObjectsComponent.h>
+#include <SkyboltEngine/WindowUtil.h>
 #include <SkyboltEnginePlugins/FftOcean/FftOceanPlugin.h>
 #include <SkyboltSim/Entity.h>
 #include <SkyboltSim/World.h>
@@ -42,10 +43,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/OsgImageHelpers.h>
 #include <SkyboltVis/OsgStateSetHelpers.h>
 #include <SkyboltVis/OsgTextureHelpers.h>
-#include <SkyboltVis/RenderTarget/RenderTargetSceneAdapter.h>
-#include <SkyboltVis/RenderTarget/RenderTexture.h>
-#include <SkyboltVis/RenderTarget/Viewport.h>
-#include <SkyboltVis/RenderTarget/ViewportHelpers.h>
+#include <SkyboltVis/RenderOperation/DefaultRenderCameraViewport.h>
 #include <SkyboltVis/VisibilityCategory.h>
 #include <SkyboltVis/Window/EmbeddedWindow.h>
 #include <SkyboltCommon/MapUtility.h>
@@ -149,8 +147,9 @@ SURFHANDLE SkyboltClient::clbkLoadTexture(const char *fname, DWORD flags)
 			texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
 			texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
 			texture->setUseHardwareMipMapGeneration(false);
-
 		}
+		texture->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
+		texture->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
 
 		SURFHANDLE handle = (SURFHANDLE)texture.get();
 		mTextures[handle] = texture;
@@ -363,7 +362,7 @@ SURFHANDLE SkyboltClient::clbkCreateSurfaceEx(DWORD w, DWORD h, DWORD attrib)
 		SURFHANDLE handle = texture.get();
 		mTextures[handle] = texture;
 
-		mEngineRoot->scene->_getGroup()->addChild(camera);
+		mEngineRoot->scene->getBucketGroup(vis::Scene::Bucket::Default)->addChild(camera);
 
 		if (attrib & OAPISURFACE_SKETCHPAD)
 		{
@@ -671,13 +670,12 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		mWindow = std::make_unique<vis::EmbeddedWindow>(windowConfig);
 
 		// Attach camera to window
-		osg::ref_ptr<vis::RenderTarget> viewport = createAndAddViewportToWindow(*mWindow, mEngineRoot->programs.getRequiredProgram("compositeFinal"));
-		viewport->setScene(std::make_shared<vis::RenderTargetSceneAdapter>(mEngineRoot->scene));
+		osg::ref_ptr<vis::RenderCameraViewport> viewport = createAndAddViewportToWindowWithEngine(*mWindow, *mEngineRoot);
 		viewport->setCamera(getVisCamera(*mSimCamera));
 
 		// Setup blitter
 		{
-			osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().front().target->getOsgCamera();
+			osg::ref_ptr<osg::Camera> osgCamera = viewport->getFinalRenderTarget()->getOsgCamera();
 			mTextureBlitter = new TextureBlitter();
 			osgCamera->addPreDrawCallback(mTextureBlitter);
 		}
@@ -688,7 +686,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		// Create HUD panel overlay
 		{
 			mPanelGroup = new osg::Group();
-			osg::ref_ptr<osg::Camera> osgCamera = mWindow->getRenderTargets().back().target->getOsgCamera();
+			osg::ref_ptr<osg::Camera> osgCamera = viewport->getFinalRenderTarget()->getOsgCamera();
 			osgCamera->addChild(mPanelGroup);
 
 			auto program = mEngineRoot->programs.getRequiredProgram("hudGeometry");

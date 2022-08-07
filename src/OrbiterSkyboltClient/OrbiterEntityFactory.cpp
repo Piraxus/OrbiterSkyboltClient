@@ -28,6 +28,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <SkyboltVis/Renderable/Beams.h>
 #include <SkyboltVis/Renderable/Model/Model.h>
 #include <SkyboltVis/Renderable/Planet/Planet.h>
+#include <SkyboltVis/Renderable/Water/WaterMaterial.h>
 #include <SkyboltVis/Shader/ShaderProgramRegistry.h>
 
 using namespace oapi;
@@ -149,7 +150,8 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 			{"elevation", {
 				{"format", "orbiterElevation"},
 				{"url", planetTexturePath},
-				{"maxLevel", 13} // TODO: determine correct maximum for tile source used
+				{"maxLevel", 13}, // TODO: determine correct maximum for tile source used
+				{"heightMapTexelsOnTileEdge", true}
 			}},
 			{"albedo", {
 				{"format", "orbiterImage"},
@@ -223,7 +225,10 @@ sim::EntityPtr OrbiterEntityFactory::createPlanet(OBJHANDLE object) const
 
 	sim::EntityPtr entity = mEntityFactory->createEntityFromJson(j, name, math::dvec3Zero(), math::dquatIdentity());
 	vis::Planet* planet = getFirstVisObject<vis::Planet>(*entity).get();
-	planet->setWaveHeight(10);
+	if (planet->getWaterMaterial())
+	{
+		planet->getWaterMaterial()->setWaveHeight(10);
+	}
 	return entity;
 }
 

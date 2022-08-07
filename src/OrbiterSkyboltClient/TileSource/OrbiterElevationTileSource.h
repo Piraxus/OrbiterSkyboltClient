@@ -19,6 +19,8 @@ public:
 	OrbiterElevationTileSource(const std::string& directory);
 	~OrbiterElevationTileSource() override = default;
 
+	const std::string& getCacheSha() const override { static std::string s = "OrbiterElevationTileSource"; return s; }
+
 protected:
 	osg::ref_ptr<osg::Image> createImage(const std::uint8_t* buffer, std::size_t sizeBytes) const;
 };

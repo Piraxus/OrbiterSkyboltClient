@@ -11,7 +11,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "OrbiterElevationTileSource.h"
 #include "OrbiterSkyboltClient/ThirdParty/ztreemgr.h"
-#include <SkyboltVis/Renderable/Planet/Tile/HeightMap.h>
+#include <SkyboltVis/Renderable/Planet/Tile/HeightMapElevationBounds.h>
+#include <SkyboltVis/Renderable/Planet/Tile/HeightMapElevationRerange.h>
 
 #include <osgDB/Registry>
 #include <boost/scope_exit.hpp>
@@ -51,8 +52,10 @@ osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const std::uint
 
 	const ELEVFILEHEADER& header = reinterpret_cast<const ELEVFILEHEADER&>(*buffer);
 
+	// Orbiter elevation tiles are 259x259 pixels. The inner 257x257 is a tile with edges along the lat lon bounds.
+	// We discard the outermost row and column, which is elevation data in the next adjacent tile.
 	osg::ref_ptr<osg::Image> image = new osg::Image();
-	image->allocateImage(256, 256, 1, GL_LUMINANCE, GL_UNSIGNED_SHORT);
+	image->allocateImage(257, 257, 1, GL_LUMINANCE, GL_UNSIGNED_SHORT);
 	image->setInternalTextureFormat(GL_R16);
 	uint16_t* ptr = (uint16_t*)image->getDataPointer();
 
@@ -65,45 +68,43 @@ osg::ref_ptr<osg::Image> OrbiterElevationTileSource::createImage(const std::uint
 
 	if (header.dtype == 8) // uint8
 	{
-		if ((int)sizeBytes > header.hdrsize + expectedWidth * expectedHeight)
+		if ((int)sizeBytes < header.hdrsize + expectedWidth * expectedHeight)
 		{
 			return nullptr;
 		}
 
 		const std::uint8_t* source = buffer + header.hdrsize;
-		for (int y = 1; y < 257; ++y)
+		for (int y = 1; y <= 257; ++y)
 		{
-			for (int x = 1; x < 257; ++x)
+			for (int x = 1; x <= 257; ++x)
 			{
-				*ptr++ = vis::getHeightmapSeaLevelValueInt() + source[y * 259 + x] + int(header.offset);
+				*ptr++ = int(source[y * 259 + x]) + 32768;
 			}
 		}
 	}
 	else if (header.dtype == -16) // int16
 	{
-		if ((int)sizeBytes > header.hdrsize + expectedWidth * expectedHeight * sizeof(std::int16_t))
+		if ((int)sizeBytes < header.hdrsize + expectedWidth * expectedHeight * sizeof(std::int16_t))
 		{
 			return nullptr;
 		}
 
 		const std::int16_t* source = reinterpret_cast<const std::int16_t*>(buffer + header.hdrsize);
-		for (int y = 1; y < 257; ++y)
+		for (int y = 1; y <= 257; ++y)
 		{
-			for (int x = 1; x < 257; ++x)
+			for (int x = 1; x <= 257; ++x)
 			{
-				// TODO: add support to skybolt for tile offsets and remove clamp. This needed for bodies like as Vesta
-				// which have a height range exceeding 16 bit limits.
-				*ptr++ = std::clamp(vis::getHeightmapSeaLevelValueInt() + source[y * 259 + x] + int(header.offset), 0, 65535);
+				*ptr++ = int(source[y * 259 + x]) + 32768;;
 			}
 		}
 	}
 	else // if (header.dtype == 0) // flat
 	{
-		for (int i = 0; i < 256 * 256; ++i)
-		{
-			*ptr++ = vis::getHeightmapSeaLevelValueInt() + header.emean;
-		}
+		memset(ptr, 0, 257 * 257 * sizeof(std::uint16_t));
 	}
+
+	vis::setHeightMapElevationBounds(*image, vis::HeightMapElevationBounds(header.emin, header.emax));
+	vis::setHeightMapElevationRerange(*image, vis::HeightMapElevationRerange(header.scale, header.offset - 32768));
 
 	return image;
 }

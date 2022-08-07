@@ -11,7 +11,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "OrbiterTileSource.h"
 #include "OrbiterSkyboltClient/ThirdParty/ztreemgr.h"
-#include <SkyboltVis/Renderable/Planet/Tile/HeightMap.h>
 
 #include <osgDB/Registry>
 #include <boost/scope_exit.hpp>
