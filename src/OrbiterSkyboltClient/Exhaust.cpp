@@ -52,11 +52,8 @@ void Exhaust::syncVis(const GeocentricToNedConverter& converter)
 		{
 			mVessel->GetExhaustSpec(i, &es);
 
-			osg::ref_ptr<osg::Texture2D> texture = es.tex ? mTextureProvider(es.tex) : defaultTexture;
-			if (!texture)
-			{
-				texture = defaultTexture;
-			}
+			const std::optional<TextureGroup>& textureGroup = es.tex ? mTextureProvider(es.tex) : defaultTexture;
+			osg::ref_ptr<osg::Texture2D> texture = textureGroup ? textureGroup->albedo : defaultTexture;
 			
 			float alpha = std::min(1.0, *es.level);
 			if (es.modulate > 0.0)

@@ -128,31 +128,58 @@ void SkyboltClient::clbkRefreshVideoData()
 	mVideoTab->UpdateConfigData();
 }
 
-static osg::ref_ptr<osg::Texture2D> readAlbedoTexture(const std::string& filename)
+static osg::ref_ptr<osg::Texture2D> readTilingSrgbTexture(const std::string& filename)
 {
-	return vis::createSrgbTexture(osgDB::readImageFile(filename));
+	return vis::createTilingSrgbTexture(osgDB::readImageFile(filename));
+}
+
+static osg::ref_ptr<osg::Texture2D> readTilingLinearTexture(const std::string& filename)
+{
+	auto texture = new osg::Texture2D(osgDB::readImageFile(filename));
+	texture->setFilter(osg::Texture::FilterParameter::MIN_FILTER, osg::Texture::FilterMode::LINEAR_MIPMAP_LINEAR);
+	texture->setFilter(osg::Texture::FilterParameter::MAG_FILTER, osg::Texture::FilterMode::LINEAR);
+	texture->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
+	texture->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
+	return texture;
 }
 
 #define LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS 4
+
+osg::ref_ptr<osg::Texture2D> loadTexture(const std::string& filename, DWORD flags, bool srgb)
+{
+	auto texture = srgb ? readTilingSrgbTexture(filename) : readTilingLinearTexture(filename);
+
+	if (flags & LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS) // interpret this flag as disabling mipmaps
+	{
+		texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+		texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+		texture->setUseHardwareMipMapGeneration(false);
+	}
+	return texture;
+}
 
 SURFHANDLE SkyboltClient::clbkLoadTexture(const char *fname, DWORD flags)
 {
 	char cpath[256];
 	if (TexturePath(fname, cpath))
 	{
-		auto texture = readAlbedoTexture(std::string(cpath));
-
-		if (flags & LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS) // interpret this flag as disabling mipmaps
+		namespace fs = std::filesystem;
+		fs::path path = cpath;
+		TextureGroup group;
+		group.albedo = loadTexture(path.string(), flags, /* srgb */ true);
+		
+		if (fs::path extraPath = addSuffixToBaseFilename(path, "_norm"); fs::exists(extraPath))
 		{
-			texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
-			texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
-			texture->setUseHardwareMipMapGeneration(false);
+			group.normal = loadTexture(extraPath.string(), flags, /* srgb */ false);
 		}
-		texture->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
-		texture->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
 
-		SURFHANDLE handle = (SURFHANDLE)texture.get();
-		mTextures[handle] = texture;
+		if (fs::path extraPath = addSuffixToBaseFilename(path, "_spec"); fs::exists(extraPath))
+		{
+			group.specular = loadTexture(extraPath.string(), flags, /* srgb */ true);
+		}
+
+		SURFHANDLE handle = (SURFHANDLE)group.albedo.get();
+		mTextures[handle] = group;
 		return handle;
 	}
 	return NULL;
@@ -233,7 +260,7 @@ int SkyboltClient::clbkEditMeshGroup(DEVMESHHANDLE hMesh, DWORD grpidx, GROUPEDI
 ParticleStream* SkyboltClient::clbkCreateParticleStream(PARTICLESTREAMSPEC *pss)
 {
 	auto entityFinder = [this](OBJHANDLE vessel) {
-		return findOptional(mEntities, vessel).get_value_or(nullptr);
+		return findOptional(mEntities, vessel).value_or(nullptr);
 	};
 
 	auto destructionAction = [this](SkyboltParticleStream* stream) {
@@ -390,8 +417,8 @@ bool SkyboltClient::clbkBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE s
 	auto texture = findOptional(mTextures, tgt);
 	if (texture)
 	{
-		int w = (*texture)->getTextureWidth();
-		int h = (*texture)->getTextureHeight();
+		int w = texture->albedo->getTextureWidth();
+		int h = texture->albedo->getTextureHeight();
 		return clbkBlt(tgt, tgtx, tgty, src, 0, 0, w, h, flag);
 	}
 	return false;
@@ -406,7 +433,7 @@ bool SkyboltClient::clbkBlt(SURFHANDLE tgt, DWORD tgtx, DWORD tgty, SURFHANDLE s
 		return false;
 	}
 
-	mTextureBlitter->blitTexture(**srcTexture, **dstTexture,
+	mTextureBlitter->blitTexture(*srcTexture->albedo, *dstTexture->albedo,
 		Box2i(glm::ivec2(srcx, srcy), glm::ivec2(srcx + w, srcy + h)),
 		Box2i(glm::ivec2(tgtx, tgty), glm::ivec2(tgtx + w, tgty + h)));
 	return true;
@@ -613,7 +640,7 @@ HWND SkyboltClient::clbkCreateRenderWindow()
 		});
 
 		auto textureProvider = [this](SURFHANDLE surface) {
-			return findOptional(mTextures, surface).get_value_or(nullptr);
+			return findOptional(mTextures, surface);
 		};
 
 		std::shared_ptr<ModelFactory> modelFactory;
@@ -777,7 +804,7 @@ void SkyboltClient::updateVirtualCockpitTextures(OrbiterModel& model) const
 			if (texture)
 			{
 				model.useMeshAsMfd(hudspec->ngroup, program, /* alphaBlend */ true);
-				model.setMeshTexture(hudspec->ngroup, *texture);
+				model.setMeshTexture(hudspec->ngroup, texture->albedo);
 			}
 		}
 	}
@@ -794,7 +821,7 @@ void SkyboltClient::updateVirtualCockpitTextures(OrbiterModel& model) const
 			if (texture)
 			{
 				model.useMeshAsMfd(mfdspec->ngroup, program, /* alphaBlend */ false);
-				model.setMeshTexture(mfdspec->ngroup, *texture);
+				model.setMeshTexture(mfdspec->ngroup, texture->albedo);
 			}
 		}
 	}

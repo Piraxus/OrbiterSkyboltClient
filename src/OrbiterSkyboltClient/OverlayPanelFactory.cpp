@@ -96,7 +96,7 @@ osg::ref_ptr<osg::Geode> OverlayPanelFactory::createOverlayPanel(SURFHANDLE *hSu
 		auto texture = mTextureProvider(newsurf);
 		if (texture)
 		{
-			geometry->getOrCreateStateSet()->setTextureAttributeAndModes(0, texture);
+			geometry->getOrCreateStateSet()->setTextureAttribute(0, texture->albedo);
 		}
 	}
 

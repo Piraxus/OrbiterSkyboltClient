@@ -13,6 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #define OAPI_STATIC
 #include "GraphicsAPI.h"
 #include "TextureBlitter.h"
+#include "TextureGroup.h"
 
 #include <SkyboltEngine/SkyboltEngineFwd.h>
 #include <SkyboltSim/SkyboltSimFwd.h>
@@ -193,7 +194,7 @@ private:
 
 	osg::ref_ptr<osg::Group> mPanelGroup;
 	std::map<OBJHANDLE, skybolt::sim::EntityPtr> mEntities;
-	std::map<SURFHANDLE, osg::ref_ptr<osg::Texture2D>> mTextures;
+	std::map<SURFHANDLE, TextureGroup> mTextures;
 	std::map<SURFHANDLE, std::shared_ptr<OsgSketchpad>> mSketchpads;
 	std::set<SkyboltParticleStream*> mParticleStreams;
 	osg::ref_ptr<TextureBlitter> mTextureBlitter;

@@ -3,7 +3,7 @@ import os
 
 class SkyboltConan(ConanFile):
     name = "orbiter-skybolt-client"
-    version = "1.0.2"
+    version = "1.0.3"
     settings = "os", "compiler", "arch", "build_type"
     options = {
 		"shared": [True, False]

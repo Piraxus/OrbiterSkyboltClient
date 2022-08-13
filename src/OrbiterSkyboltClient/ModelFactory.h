@@ -46,7 +46,7 @@ private:
 		std::vector<std::optional<MeshGroupData>> meshGroupData;
 	};
 	ModelFactory::CreateMeshResult getOrCreateMesh(MESHHANDLE mesh) const;
-	void populateStateSet(osg::StateSet& stateSet, MESHHANDLE mesh, const MESHGROUP& group) const;
+	void prepareGeometryStateSet(osg::Geometry& geometry, MESHHANDLE mesh, const MESHGROUP& group) const;
 
 private:
 	SurfaceHandleFromTextureIdProvider mSurfaceHandleFromTextureIdProvider;

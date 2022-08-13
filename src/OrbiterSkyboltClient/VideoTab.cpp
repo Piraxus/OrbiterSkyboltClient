@@ -208,7 +208,8 @@ void VideoTab::SelectDispmode (SkyboltDeviceInfo *dev, BOOL bWindow)
 // Respond to user selection of fullscreen resolution
 void VideoTab::SelectMode (SkyboltDeviceInfo *dev, DWORD idx)
 {
-	DWORD i, data, w, h, mode, bpp, ibpp, usebpp;
+	DWORD data, w, h, bpp, usebpp;
+	usebpp = 0;
 	data = SendDlgItemMessage (hTab, IDC_VID_MODE, CB_GETITEMDATA, idx, 0);
 	w    = data & 0xFFFF;
 	h    = data >> 16;
@@ -272,10 +273,9 @@ void VideoTab::SelectFixedAspect ()
 void VideoTab::UpdateConfigData ()
 {
 	char cbuf[128];
-	DWORD i, dat, w, h, bpp, ndev, nmod;
+	DWORD i, dat, w, h, bpp, ndev;
+	ndev = 1;
 	GraphicsClient::VIDEODATA *data = gclient->GetVideoData();
-
-	SkyboltDeviceInfo *devlist;
 
 	// device parameters
 	i   = SendDlgItemMessage (hTab, IDC_VID_DEVICE, CB_GETCURSEL, 0, 0);
