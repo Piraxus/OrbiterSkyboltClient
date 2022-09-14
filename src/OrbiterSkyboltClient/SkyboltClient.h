@@ -46,7 +46,7 @@ public:
 
 	SURFHANDLE clbkLoadTexture (const char *fname, DWORD flags = 0) override;
 
-	SURFHANDLE clbkLoadSurface (const char *fname, DWORD attrib) override;
+	SURFHANDLE clbkLoadSurface (const char *fname, DWORD attrib, bool bPath = false) override;
 
 	bool clbkSaveSurfaceToImage (SURFHANDLE surf, const char *fname,
 		ImageFileFormat fmt, float quality=0.7f) override { return false; }
@@ -141,7 +141,7 @@ public:
 
 	void clbkReleaseSketchpad (Sketchpad *sp) override {}
 
-	Font *clbkCreateFont(int height, bool prop, const char *face, oapi::Font::Style style = oapi::Font::NORMAL, int orientation = 0) const override;
+	Font *clbkCreateFont(int height, bool prop, const char *face, FontStyle style = FontStyle::FONT_NORMAL, int orientation = 0) const override;
 
 	void clbkReleaseFont(Font *font) const override;
 

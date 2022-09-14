@@ -69,11 +69,11 @@ public:
 
 public: // oapi::Sketchpad interface
 
-	oapi::Font *SetFont(oapi::Font *font) const override;
+	oapi::Font *SetFont(oapi::Font *font) override;
 
-	oapi::Pen *SetPen(oapi::Pen *pen) const override;
+	oapi::Pen *SetPen(oapi::Pen *pen) override;
 
-	oapi::Brush *SetBrush(oapi::Brush *brush) const override;
+	oapi::Brush *SetBrush(oapi::Brush *brush) override;
 
 	void SetTextAlign(TAlign_horizontal tah = LEFT, TAlign_vertical tav = TOP) override;
 

@@ -274,21 +274,21 @@ void OsgSketchpad::fillBackground(const osg::Vec4f& color)
 	SetTextAlign();
 }
 
-oapi::Font* OsgSketchpad::SetFont(oapi::Font* font) const
+oapi::Font* OsgSketchpad::SetFont(oapi::Font* font)
 {
 	oapi::Font* oldFont = mFont;
 	mFont = dynamic_cast<OsgFont*>(font);
 	return oldFont;
 }
 
-oapi::Pen* OsgSketchpad::SetPen(oapi::Pen* pen) const
+oapi::Pen* OsgSketchpad::SetPen(oapi::Pen* pen)
 {
 	oapi::Pen* oldPen = mPen;
 	mPen = dynamic_cast<OsgPen*>(pen);
 	return oldPen;
 }
 
-oapi::Brush* OsgSketchpad::SetBrush(oapi::Brush* brush) const
+oapi::Brush* OsgSketchpad::SetBrush(oapi::Brush* brush)
 {
 	oapi::Brush* oldBrush = mBrush;
 	mBrush = dynamic_cast<OsgBrush*>(brush);

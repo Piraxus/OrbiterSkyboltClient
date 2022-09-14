@@ -144,6 +144,7 @@ static osg::ref_ptr<osg::Texture2D> readTilingLinearTexture(const std::string& f
 }
 
 #define LOAD_TEXTURE_BIT_DONT_LOAD_MIPMAPS 4
+#define LOAD_TEXTURE_BIT_GLOBAL_RESOURCE 8
 
 osg::ref_ptr<osg::Texture2D> loadTexture(const std::string& filename, DWORD flags, bool srgb)
 {
@@ -185,9 +186,9 @@ SURFHANDLE SkyboltClient::clbkLoadTexture(const char *fname, DWORD flags)
 	return NULL;
 }
 
-SURFHANDLE SkyboltClient::clbkLoadSurface(const char *fname, DWORD attrib)
+SURFHANDLE SkyboltClient::clbkLoadSurface(const char *fname, DWORD attrib, bool bPath)
 {
-	return NULL;
+	return clbkLoadTexture(fname, LOAD_TEXTURE_BIT_GLOBAL_RESOURCE);
 }
 
 void SkyboltClient::clbkReleaseTexture(SURFHANDLE hTex)
@@ -499,7 +500,7 @@ Sketchpad* SkyboltClient::clbkGetSketchpad(SURFHANDLE surf)
 	return nullptr;
 }
 
-Font* SkyboltClient::clbkCreateFont(int height, bool prop, const char* face, oapi::Font::Style style, int orientation) const
+Font* SkyboltClient::clbkCreateFont(int height, bool prop, const char* face, FontStyle style, int orientation) const
 {
 	auto font = std::make_shared<OsgFont>();
 	font->name = face;
