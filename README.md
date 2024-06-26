@@ -6,11 +6,13 @@ This project is in early development and many Orbiter graphics features are not 
 ## Build
 ### Using conan
 [Conan](https://conan.io) is a C++ package manager which makes builds easier.
-If you do not already have conan installed, run `pip install conan` to install conan using [pip](https://pypi.org/project/pip).
+Currently, the build requires conan version 1.x. We plan to upgrade to 2.x in the future.
+If you do not already have conan 1.x installed, run `pip install conan==1.64.1` to install using [pip](https://pypi.org/project/pip).
 
-Then build with the following commands:
+Build with the following commands:
 ```
 git clone https://github.com/piraxus/Skybolt
+git -C Skybolt checkout v1.4.1
 conan export Skybolt
 
 git clone https://github.com/Piraxus/OrbiterSkyboltClient
